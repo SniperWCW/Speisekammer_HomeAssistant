@@ -1,3 +1,5 @@
+"""Async API Wrapper für Speisekammer"""
+
 import aiohttp
 import logging
 
