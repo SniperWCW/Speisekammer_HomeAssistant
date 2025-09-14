@@ -16,8 +16,6 @@ async def async_setup_platform(hass, config, add_entities, discovery_info=None):
 
 
 class ExpiringItemsSensor(Entity):
-    """Sensor: Artikel, die in den nächsten X Tagen ablaufen."""
-
     def __init__(self, api: SpeisekammerAPI, community_id: str, days_threshold: int = 3):
         self._api = api
         self._community_id = community_id
@@ -61,16 +59,11 @@ class ExpiringItemsSensor(Entity):
 
         self._state = len(expiring)
         self._attributes = {
-            "items": [
-                {"name": i.get("name"), "expires": i.get("expirationDate")}
-                for i in expiring
-            ]
+            "items": [{"name": i.get("name"), "expires": i.get("expirationDate")} for i in expiring]
         }
 
 
 class TotalItemsSensor(Entity):
-    """Sensor: Gesamtanzahl Artikel."""
-
     def __init__(self, api: SpeisekammerAPI, community_id: str):
         self._api = api
         self._community_id = community_id
@@ -90,8 +83,6 @@ class TotalItemsSensor(Entity):
 
 
 class ItemsPerLocationSensor(Entity):
-    """Sensor: Anzahl Artikel pro Lagerort."""
-
     def __init__(self, api: SpeisekammerAPI, community_id: str):
         self._api = api
         self._community_id = community_id
