@@ -8,8 +8,9 @@ import logging
 
 _LOGGER = logging.getLogger(__name__)
 
+
 async def async_setup_platform(hass, config, async_add_entities, discovery_info=None):
-    """Setup der Sensoren über Platform (aufgerufen von ConfigEntry)."""
+    """Setup der Sensoren über Platform (nur YAML, optional)."""
     token = config.get("token")
     community_id = config.get(CONF_COMMUNITY_ID)
     api = SpeisekammerAPI(token)
@@ -18,7 +19,23 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
         ExpiringItemsSensor(api, community_id),
         TotalItemsSensor(api, community_id),
         ItemsPerLocationSensor(api, community_id),
-        ItemsPerLocationDetailsSensor(api, community_id)
+        ItemsPerLocationDetailsSensor(api, community_id),
+    ]
+
+    async_add_entities(sensors, update_before_add=True)
+
+
+async def async_setup_entry(hass, entry, async_add_entities):
+    """Setup der Sensoren über ConfigEntry."""
+    token = entry.data.get("token")
+    community_id = entry.data.get("community_id")
+    api = SpeisekammerAPI(token)
+
+    sensors = [
+        ExpiringItemsSensor(api, community_id),
+        TotalItemsSensor(api, community_id),
+        ItemsPerLocationSensor(api, community_id),
+        ItemsPerLocationDetailsSensor(api, community_id),
     ]
 
     async_add_entities(sensors, update_before_add=True)
@@ -76,8 +93,8 @@ class ExpiringItemsSensor(Entity):
                 if now <= exp_date <= cutoff:
                     expiring.append({
                         "name": item.get("name"),
-                        "expires": exp_date_str,
                         "count": attr.get("count"),
+                        "expires": exp_date_str,
                         "gtin": item.get("gtin")
                     })
 
