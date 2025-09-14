@@ -10,12 +10,12 @@ _LOGGER = logging.getLogger(__name__)
 
 
 async def async_setup_entry(hass, entry):
-    """Setup der Sensoren über ConfigEntry (async)."""
+    """Setup Sensoren über ConfigEntry (HA-konform)."""
     token = entry.data.get("token")
     community_id = entry.data.get(CONF_COMMUNITY_ID)
     api = SpeisekammerAPI(token)
 
-    # Zugriff auf die aktuelle Entity-Plattform
+    # Plattform holen
     platform = hass.helpers.entity_platform.async_get_current_platform()
 
     sensors = [
