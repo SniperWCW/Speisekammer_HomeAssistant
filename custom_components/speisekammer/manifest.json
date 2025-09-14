@@ -2,7 +2,7 @@
   "domain": "speisekammer",
   "name": "Speisekammer",
   "version": "0.1.0",
-  "requirements": [],
+  "requirements": ["aiohttp"],
   "dependencies": [],
   "codeowners": ["@SniperWCW"],
   "config_flow": true
