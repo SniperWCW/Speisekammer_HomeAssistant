@@ -1,5 +1,3 @@
-"""Initialisierung der Speisekammer Integration"""
-
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 
@@ -12,8 +10,6 @@ async def async_setup(hass: HomeAssistant, config: dict):
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     """Setup über ConfigEntry."""
 
-    # Sensor-Plattform laden
-    hass.async_create_task(
-        hass.config_entries.async_forward_entry_setup(entry, "sensor")
-    )
+    # Sensor-Plattform laden (korrekte neue Methode)
+    await hass.config_entries.async_forward_entry_setups(entry, ["sensor"])
     return True
