@@ -1,20 +1,19 @@
-"""Speisekammer Integration"""
+"""Initialisierung der Speisekammer Integration"""
 
-from homeassistant.core import HomeAssistant
 from homeassistant.config_entries import ConfigEntry
-from .sensor import async_setup_entry as sensors_async_setup_entry
+from homeassistant.core import HomeAssistant
+
+from .const import DOMAIN
 
 async def async_setup(hass: HomeAssistant, config: dict):
-    """Setup der Integration (ConfigFlow, kein YAML)."""
+    """Setup ohne ConfigEntry (optional, falls yaml genutzt wird)."""
     return True
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
-    """Setup eines ConfigEntry (wird von Home Assistant aufgerufen)."""
-    # Sensoren registrieren
-    await sensors_async_setup_entry(hass, entry)
-    return True
+    """Setup über ConfigEntry."""
 
-async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry):
-    """Unload eines ConfigEntry."""
-    # Sensoren werden automatisch über HA entfernt
+    # Sensor-Plattform laden
+    hass.async_create_task(
+        hass.config_entries.async_forward_entry_setup(entry, "sensor")
+    )
     return True
