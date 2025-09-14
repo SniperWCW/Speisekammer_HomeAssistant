@@ -1,18 +1,18 @@
 from datetime import datetime, timedelta
 from homeassistant.helpers.entity import Entity
 from .api import SpeisekammerAPI
-from .const import DOMAIN, CONF_TOKEN, CONF_COMMUNITY_ID
+from .const import CONF_COMMUNITY_ID
 
-async def async_setup_platform(hass, config, add_entities, discovery_info=None):
-    token = config.get(CONF_TOKEN)
-    community_id = config.get(CONF_COMMUNITY_ID)
-    api = SpeisekammerAPI(token=token)
+async def async_setup_entry(hass, entry, async_add_entities):
+    token = entry.data.get("token")
+    community_id = entry.data.get(CONF_COMMUNITY_ID)
+    api = SpeisekammerAPI(token)
 
-    add_entities([
-        ExpiringItemsSensor(api, community_id, days_threshold=3),
+    async_add_entities([
+        ExpiringItemsSensor(api, community_id),
         TotalItemsSensor(api, community_id),
         ItemsPerLocationSensor(api, community_id)
-    ], True)
+    ], update_before_add=True)
 
 
 class ExpiringItemsSensor(Entity):
@@ -38,7 +38,7 @@ class ExpiringItemsSensor(Entity):
     async def async_update(self):
         items = await self._api.get_items(self._community_id)
         if not items:
-            self._state = None
+            self._state = 0
             self._attributes = {}
             return
 
