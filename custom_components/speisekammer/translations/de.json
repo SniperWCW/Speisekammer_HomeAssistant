@@ -1,1 +1,10 @@
-
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Speisekammer Integration einrichten",
+        "description": "Bitte deinen API-Token und Community-ID eintragen."
+      }
+    }
+  }
+}
