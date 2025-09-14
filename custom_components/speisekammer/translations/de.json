@@ -1,10 +1,12 @@
 {
-  "config": {
-    "step": {
-      "user": {
-        "title": "Speisekammer Integration einrichten",
-        "description": "Bitte deinen API-Token und Community-ID eintragen."
-      }
+    "component": {
+        "speisekammer": {
+            "name": "Speisekammer",
+            "state": {
+                "ExpiringItemsSensor": "Artikel bald ablaufend",
+                "TotalItemsSensor": "Gesamtanzahl Artikel",
+                "ItemsPerLocationSensor": "Artikel pro Lagerort"
+            }
+        }
     }
-  }
 }
