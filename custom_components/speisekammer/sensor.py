@@ -3,20 +3,16 @@
 from datetime import datetime, timedelta
 from homeassistant.helpers.entity import Entity
 from .api import SpeisekammerAPI
-from .const import CONF_COMMUNITY_ID, DOMAIN
+from .const import CONF_COMMUNITY_ID
 import logging
 
 _LOGGER = logging.getLogger(__name__)
 
-
-async def async_setup_entry(hass, entry):
-    """Setup Sensoren über ConfigEntry (HA-konform)."""
-    token = entry.data.get("token")
-    community_id = entry.data.get(CONF_COMMUNITY_ID)
+async def async_setup_platform(hass, config, async_add_entities, discovery_info=None):
+    """Setup Sensoren über Platform (wird von ConfigEntry aufgerufen)."""
+    token = config.get("token")
+    community_id = config.get(CONF_COMMUNITY_ID)
     api = SpeisekammerAPI(token)
-
-    # Plattform holen
-    platform = hass.helpers.entity_platform.async_get_current_platform()
 
     sensors = [
         ExpiringItemsSensor(api, community_id),
@@ -24,8 +20,7 @@ async def async_setup_entry(hass, entry):
         ItemsPerLocationSensor(api, community_id)
     ]
 
-    # Entities registrieren
-    platform.async_add_entities(sensors, update_before_add=True)
+    async_add_entities(sensors, update_before_add=True)
 
 
 class ExpiringItemsSensor(Entity):
