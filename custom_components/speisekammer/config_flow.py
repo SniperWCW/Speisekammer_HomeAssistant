@@ -14,8 +14,8 @@ class SpeisekammerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     async def async_step_user(self, user_input=None):
         errors = {}
 
+        # Benutzer hat Community ausgewählt → Integration anlegen
         if user_input is not None and CONF_COMMUNITY_ID in user_input:
-            # Benutzer hat Community ausgewählt
             token = user_input[CONF_TOKEN]
             community_id = user_input[CONF_COMMUNITY_ID]
             return self.async_create_entry(
@@ -26,8 +26,8 @@ class SpeisekammerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 }
             )
 
+        # Token wurde eingegeben → Communities abrufen
         elif user_input is not None:
-            # Token wurde eingegeben, Communities abrufen
             token = user_input[CONF_TOKEN]
             api = SpeisekammerAPI(token)
             try:
@@ -44,7 +44,7 @@ class SpeisekammerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         }
                     )
                 else:
-                    # Mehrere Communities → Auswahl anzeigen
+                    # Mehrere Communities → Dropdown anzeigen
                     options = {c["id"]: c["name"] for c in communities}
                     data_schema = vol.Schema({
                         vol.Required(CONF_COMMUNITY_ID): vol.In(options),
