@@ -1,8 +1,9 @@
 {
   "domain": "speisekammer",
   "name": "Speisekammer",
-  "version": "0.1.0",
-  "requirements": ["aiohttp"],
+  "version": "1.0.0",
+  "documentation": "https://github.com/SniperWCW/Speisekammer_HomeAssistant",
+  "issue_tracker": "https://github.com/SniperWCW/Speisekammer_HomeAssistant/issues",
   "dependencies": [],
   "codeowners": ["@SniperWCW"],
   "config_flow": true
