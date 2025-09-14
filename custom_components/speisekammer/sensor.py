@@ -8,7 +8,6 @@ async def async_setup_platform(hass, config, add_entities, discovery_info=None):
     community_id = config.get(CONF_COMMUNITY_ID)
     api = SpeisekammerAPI(token=token)
 
-    # Sensoren anlegen
     add_entities([
         ExpiringItemsSensor(api, community_id, days_threshold=3),
         TotalItemsSensor(api, community_id),
@@ -17,7 +16,7 @@ async def async_setup_platform(hass, config, add_entities, discovery_info=None):
 
 
 class ExpiringItemsSensor(Entity):
-    """Sensor: Anzahl Artikel mit MHD in den nächsten X Tagen."""
+    """Sensor: Artikel, die in den nächsten X Tagen ablaufen."""
 
     def __init__(self, api: SpeisekammerAPI, community_id: str, days_threshold: int = 3):
         self._api = api
@@ -38,7 +37,7 @@ class ExpiringItemsSensor(Entity):
     def extra_state_attributes(self):
         return self._attributes
 
-    def update(self):
+    async def async_update(self):
         items = await self._api.get_items(self._community_id)
         if not items:
             self._state = None
@@ -85,7 +84,7 @@ class TotalItemsSensor(Entity):
     def state(self):
         return self._state
 
-    def update(self):
+    async def async_update(self):
         items = await self._api.get_items(self._community_id)
         self._state = len(items) if items else 0
 
@@ -111,7 +110,7 @@ class ItemsPerLocationSensor(Entity):
     def extra_state_attributes(self):
         return self._attributes
 
-    def update(self):
+    async def async_update(self):
         items = await self._api.get_items(self._community_id)
         if not items:
             self._state = 0
