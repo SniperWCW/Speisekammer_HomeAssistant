@@ -2,7 +2,6 @@
 
 from homeassistant.core import HomeAssistant
 from homeassistant.config_entries import ConfigEntry
-from .const import DOMAIN
 from .sensor import async_setup_entry as sensors_async_setup_entry
 
 async def async_setup(hass: HomeAssistant, config: dict):
