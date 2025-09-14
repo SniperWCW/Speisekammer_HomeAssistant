@@ -1,21 +1,36 @@
+"""Speisekammer Sensoren"""
+
 from datetime import datetime, timedelta
 from homeassistant.helpers.entity import Entity
 from .api import SpeisekammerAPI
-from .const import CONF_COMMUNITY_ID
+from .const import CONF_COMMUNITY_ID, DOMAIN
+import logging
 
-async def async_setup_entry(hass, entry, async_add_entities):
+_LOGGER = logging.getLogger(__name__)
+
+
+async def async_setup_entry(hass, entry):
+    """Setup der Sensoren über ConfigEntry (async)."""
     token = entry.data.get("token")
     community_id = entry.data.get(CONF_COMMUNITY_ID)
     api = SpeisekammerAPI(token)
 
-    async_add_entities([
+    # Zugriff auf die aktuelle Entity-Plattform
+    platform = hass.helpers.entity_platform.async_get_current_platform()
+
+    sensors = [
         ExpiringItemsSensor(api, community_id),
         TotalItemsSensor(api, community_id),
         ItemsPerLocationSensor(api, community_id)
-    ], update_before_add=True)
+    ]
+
+    # Entities registrieren
+    platform.async_add_entities(sensors, update_before_add=True)
 
 
 class ExpiringItemsSensor(Entity):
+    """Sensor: Anzahl Artikel mit MHD in den nächsten X Tagen."""
+
     def __init__(self, api: SpeisekammerAPI, community_id: str, days_threshold: int = 3):
         self._api = api
         self._community_id = community_id
@@ -36,7 +51,14 @@ class ExpiringItemsSensor(Entity):
         return self._attributes
 
     async def async_update(self):
-        items = await self._api.get_items(self._community_id)
+        try:
+            items = await self._api.get_items(self._community_id)
+        except Exception as e:
+            _LOGGER.error("Fehler beim Abrufen der Artikel: %s", e)
+            self._state = 0
+            self._attributes = {}
+            return
+
         if not items:
             self._state = 0
             self._attributes = {}
@@ -64,6 +86,8 @@ class ExpiringItemsSensor(Entity):
 
 
 class TotalItemsSensor(Entity):
+    """Sensor: Gesamtanzahl Artikel."""
+
     def __init__(self, api: SpeisekammerAPI, community_id: str):
         self._api = api
         self._community_id = community_id
@@ -78,11 +102,17 @@ class TotalItemsSensor(Entity):
         return self._state
 
     async def async_update(self):
-        items = await self._api.get_items(self._community_id)
-        self._state = len(items) if items else 0
+        try:
+            items = await self._api.get_items(self._community_id)
+            self._state = len(items) if items else 0
+        except Exception as e:
+            _LOGGER.error("Fehler beim Abrufen der Artikel: %s", e)
+            self._state = 0
 
 
 class ItemsPerLocationSensor(Entity):
+    """Sensor: Anzahl Artikel pro Lagerort."""
+
     def __init__(self, api: SpeisekammerAPI, community_id: str):
         self._api = api
         self._community_id = community_id
@@ -102,7 +132,14 @@ class ItemsPerLocationSensor(Entity):
         return self._attributes
 
     async def async_update(self):
-        items = await self._api.get_items(self._community_id)
+        try:
+            items = await self._api.get_items(self._community_id)
+        except Exception as e:
+            _LOGGER.error("Fehler beim Abrufen der Artikel: %s", e)
+            self._state = 0
+            self._attributes = {}
+            return
+
         if not items:
             self._state = 0
             self._attributes = {}
