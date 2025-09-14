@@ -2,14 +2,31 @@
 
 from datetime import datetime, timedelta
 from homeassistant.helpers.entity import Entity
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.core import HomeAssistant
 from .api import SpeisekammerAPI
-from .const import CONF_COMMUNITY_ID
+from .const import CONF_COMMUNITY_ID, CONF_TOKEN
 import logging
 
 _LOGGER = logging.getLogger(__name__)
 
+
+async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities):
+    """Setup über ConfigEntry (UI)."""
+    token = entry.data[CONF_TOKEN]
+    community_id = entry.data[CONF_COMMUNITY_ID]
+    api = SpeisekammerAPI(token)
+
+    sensors = [
+        ExpiringItemsSensor(api, community_id),
+        TotalItemsSensor(api, community_id),
+        ItemsPerLocationSensor(api, community_id)
+    ]
+    async_add_entities(sensors, update_before_add=True)
+
+
 async def async_setup_platform(hass, config, async_add_entities, discovery_info=None):
-    """Setup Sensoren über Platform (wird von ConfigEntry aufgerufen)."""
+    """Setup über YAML (optional)."""
     token = config.get("token")
     community_id = config.get(CONF_COMMUNITY_ID)
     api = SpeisekammerAPI(token)
@@ -19,7 +36,6 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
         TotalItemsSensor(api, community_id),
         ItemsPerLocationSensor(api, community_id)
     ]
-
     async_add_entities(sensors, update_before_add=True)
 
 
