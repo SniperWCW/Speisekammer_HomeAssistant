@@ -39,7 +39,7 @@ class ExpiringItemsSensor(Entity):
         return self._attributes
 
     def update(self):
-        items = self._api.get_items(self._community_id)
+        items = await self._api.get_items(self._community_id)
         if not items:
             self._state = None
             self._attributes = {}
@@ -86,7 +86,7 @@ class TotalItemsSensor(Entity):
         return self._state
 
     def update(self):
-        items = self._api.get_items(self._community_id)
+        items = await self._api.get_items(self._community_id)
         self._state = len(items) if items else 0
 
 
@@ -112,7 +112,7 @@ class ItemsPerLocationSensor(Entity):
         return self._attributes
 
     def update(self):
-        items = self._api.get_items(self._community_id)
+        items = await self._api.get_items(self._community_id)
         if not items:
             self._state = 0
             self._attributes = {}
