@@ -1,28 +1,24 @@
 """Speisekammer Sensoren"""
 
 from datetime import datetime, timedelta
-import logging
-
 from homeassistant.helpers.entity import Entity
-from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
-
 from .api import SpeisekammerAPI
 from .const import CONF_COMMUNITY_ID
+import logging
 
 _LOGGER = logging.getLogger(__name__)
 
-async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities):
-    """Setup Sensoren für ConfigEntry."""
-    token = entry.data.get("token")
-    community_id = entry.data.get(CONF_COMMUNITY_ID)
+async def async_setup_platform(hass, config, async_add_entities, discovery_info=None):
+    """Setup der Sensoren über Platform (aufgerufen von ConfigEntry)."""
+    token = config.get("token")
+    community_id = config.get(CONF_COMMUNITY_ID)
     api = SpeisekammerAPI(token)
 
     sensors = [
         ExpiringItemsSensor(api, community_id),
         TotalItemsSensor(api, community_id),
         ItemsPerLocationSensor(api, community_id),
-        ItemsPerLocationDetailsSensor(api, community_id),
+        ItemsPerLocationDetailsSensor(api, community_id)
     ]
 
     async_add_entities(sensors, update_before_add=True)
@@ -69,20 +65,24 @@ class ExpiringItemsSensor(Entity):
         expiring = []
 
         for item in items:
-            exp_date_str = item.get("expirationDate") or item.get("expiryDate")
-            if not exp_date_str:
-                continue
-            try:
-                exp_date = datetime.fromisoformat(exp_date_str)
-            except ValueError:
-                continue
-            if now <= exp_date <= cutoff:
-                expiring.append(item)
+            for attr in item.get("attributes", []):
+                exp_date_str = attr.get("bestBeforeDate")
+                if not exp_date_str:
+                    continue
+                try:
+                    exp_date = datetime.fromisoformat(exp_date_str.replace("Z", "+00:00"))
+                except ValueError:
+                    continue
+                if now <= exp_date <= cutoff:
+                    expiring.append({
+                        "name": item.get("name"),
+                        "expires": exp_date_str,
+                        "count": attr.get("count"),
+                        "gtin": item.get("gtin")
+                    })
 
         self._state = len(expiring)
-        self._attributes = {
-            "items": [{"name": i.get("name"), "expires": i.get("expirationDate")} for i in expiring]
-        }
+        self._attributes = {"items": expiring}
 
 
 class TotalItemsSensor(Entity):
@@ -104,7 +104,11 @@ class TotalItemsSensor(Entity):
     async def async_update(self):
         try:
             items = await self._api.get_items(self._community_id)
-            self._state = len(items) if items else 0
+            total = 0
+            for item in items:
+                for attr in item.get("attributes", []):
+                    total += attr.get("count", 0)
+            self._state = total
         except Exception as e:
             _LOGGER.error("Fehler beim Abrufen der Artikel: %s", e)
             self._state = 0
@@ -148,14 +152,15 @@ class ItemsPerLocationSensor(Entity):
         locations = {}
         for item in items:
             loc = item.get("location", "Unbekannt")
-            locations[loc] = locations.get(loc, 0) + 1
+            count = sum(attr.get("count", 0) for attr in item.get("attributes", []))
+            locations[loc] = locations.get(loc, 0) + count
 
         self._attributes = locations
         self._state = sum(locations.values())
 
 
 class ItemsPerLocationDetailsSensor(Entity):
-    """Sensor: Detaillierte Auflistung pro Lagerort (für Markdown-Karte)."""
+    """Sensor: Detailliste aller Artikel pro Lagerort für Markdown."""
 
     def __init__(self, api: SpeisekammerAPI, community_id: str):
         self._api = api
@@ -165,7 +170,7 @@ class ItemsPerLocationDetailsSensor(Entity):
 
     @property
     def name(self):
-        return "Speisekammer Artikel Details je Lagerort"
+        return "Speisekammer Artikel Details pro Lagerort"
 
     @property
     def state(self):
@@ -177,37 +182,30 @@ class ItemsPerLocationDetailsSensor(Entity):
 
     async def async_update(self):
         try:
-            # Alle Lagerorte abfragen
-            locations = await self._api.get_storage_locations(self._community_id)
-            details = {}
-            total_items = 0
-
-            for loc in locations:
-                loc_id = loc.get("id")
-                loc_name = loc.get("name", "Unbekannt")
-                items = await self._api.get_stock(self._community_id, loc_id)
-                item_list = []
-
-                for item in items:
-                    name = item.get("name")
-                    gtin = item.get("gtin")
-                    for attr in item.get("attributes", []):
-                        count = attr.get("count")
-                        expiry = attr.get("bestBeforeDate")
-                        item_list.append({
-                            "name": name,
-                            "gtin": gtin,
-                            "count": count,
-                            "expires": expiry
-                        })
-                        total_items += count
-
-                details[loc_name] = item_list
-
-            self._attributes = details
-            self._state = total_items
-
+            items = await self._api.get_items(self._community_id)
         except Exception as e:
-            _LOGGER.error("Fehler beim Abrufen der Lagerort-Details: %s", e)
+            _LOGGER.error("Fehler beim Abrufen der Artikel: %s", e)
             self._state = 0
             self._attributes = {}
+            return
+
+        if not items:
+            self._state = 0
+            self._attributes = {}
+            return
+
+        details = {}
+        for item in items:
+            loc = item.get("location", "Unbekannt")
+            if loc not in details:
+                details[loc] = []
+            for attr in item.get("attributes", []):
+                details[loc].append({
+                    "name": item.get("name"),
+                    "count": attr.get("count", 0),
+                    "expires": attr.get("bestBeforeDate"),
+                    "gtin": item.get("gtin")
+                })
+
+        self._attributes = details
+        self._state = sum(len(v) for v in details.values())
