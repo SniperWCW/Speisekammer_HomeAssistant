@@ -24,7 +24,7 @@ class SpeisekammerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             api = SpeisekammerAPI(token)
             # Optional: Testaufruf zur API
             try:
-                communities = api.get_communities()
+                communities = await api.get_communities()
                 if not communities:
                     errors["base"] = "cannot_connect"
                 else:
