@@ -1,6 +1,6 @@
 """Speisekammer Sensoren"""
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from homeassistant.helpers.entity import Entity
 from .api import SpeisekammerAPI
 from .const import CONF_COMMUNITY_ID
@@ -19,12 +19,20 @@ async def async_setup_entry(hass, entry, async_add_entities):
         ExpiringItemsSensor(api, community_id),
         TotalItemsSensor(api, community_id),
         ItemsPerLocationSensor(api, community_id),
-        ItemsPerLocationDetailsSensor(api, community_id)
     ]
+
+    # Dynamisch Sensoren pro Lagerort hinzufügen
+    try:
+        items = await api.get_items(community_id)
+        locations = set(item.get("location", "Unbekannt") for item in items)
+        for loc in locations:
+            sensors.append(LocationItemsSensor(api, community_id, loc))
+    except Exception as e:
+        _LOGGER.error("Fehler beim Initialisieren der Lagerort-Sensoren: %s", e)
 
     async_add_entities(sensors, update_before_add=True)
 
-# Klassendefinitionen (gleich wie vorher)
+
 class ExpiringItemsSensor(Entity):
     """Sensor: Anzahl Artikel mit MHD in den nächsten X Tagen."""
 
@@ -61,7 +69,7 @@ class ExpiringItemsSensor(Entity):
             self._attributes = {}
             return
 
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         cutoff = now + timedelta(days=self._days)
         expiring = []
 
@@ -116,7 +124,7 @@ class TotalItemsSensor(Entity):
 
 
 class ItemsPerLocationSensor(Entity):
-    """Sensor: Anzahl Artikel pro Lagerort."""
+    """Sensor: Anzahl Artikel pro Lagerort (Übersicht)."""
 
     def __init__(self, api: SpeisekammerAPI, community_id: str):
         self._api = api
@@ -160,18 +168,23 @@ class ItemsPerLocationSensor(Entity):
         self._state = sum(locations.values())
 
 
-class ItemsPerLocationDetailsSensor(Entity):
-    """Sensor: Detailliste aller Artikel pro Lagerort für Markdown."""
+class LocationItemsSensor(Entity):
+    """Einzelner Sensor für einen Lagerort."""
 
-    def __init__(self, api: SpeisekammerAPI, community_id: str):
+    def __init__(self, api: SpeisekammerAPI, community_id: str, location: str):
         self._api = api
         self._community_id = community_id
+        self._location = location
         self._state = None
         self._attributes = {}
 
     @property
     def name(self):
-        return "Speisekammer Artikel Details pro Lagerort"
+        return f"Speisekammer {self._location}"
+
+    @property
+    def unique_id(self):
+        return f"speisekammer_{self._location.lower().replace(' ', '_')}"
 
     @property
     def state(self):
@@ -185,7 +198,7 @@ class ItemsPerLocationDetailsSensor(Entity):
         try:
             items = await self._api.get_items(self._community_id)
         except Exception as e:
-            _LOGGER.error("Fehler beim Abrufen der Artikel: %s", e)
+            _LOGGER.error("Fehler beim Abrufen der Artikel für %s: %s", self._location, e)
             self._state = 0
             self._attributes = {}
             return
@@ -195,18 +208,20 @@ class ItemsPerLocationDetailsSensor(Entity):
             self._attributes = {}
             return
 
-        details = {}
+        details = []
+        total = 0
         for item in items:
-            loc = item.get("location", "Unbekannt")
-            if loc not in details:
-                details[loc] = []
-            for attr in item.get("attributes", []):
-                details[loc].append({
-                    "name": item.get("name"),
-                    "count": attr.get("count", 0),
-                    "expires": attr.get("bestBeforeDate"),
-                    "gtin": item.get("gtin")
-                })
+            if item.get("location", "Unbekannt") == self._location:
+                for attr in item.get("attributes", []):
+                    details.append({
+                        "name": item.get("name"),
+                        "count": attr.get("count", 0),
+                        "expires": attr.get("bestBeforeDate"),
+                        "gtin": item.get("gtin")
+                    })
+                    total += attr.get("count", 0)
 
-        self._attributes = details
-        self._state = sum(len(v) for v in details.values())
+        self._state = total
+        import copy
+        self._attributes = {"items": copy.deepcopy(details)}  # Stellt sicher, dass es ein echtes Dict/List bleibt
+
