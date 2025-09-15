@@ -1,0 +1,8 @@
+{
+  "name": "Speisekammer Integration",
+  "content_in_root": false,
+  "domain": "speisekammer",
+  "country": "DE",
+  "homeassistant": "2023.0.0",
+  "render_readme": true
+}
