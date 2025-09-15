@@ -1,10 +1,10 @@
 {
   "domain": "speisekammer",
-  "name": "Speisekammer",
-  "version": "1.0.0",
-  "documentation": "https://github.com/SniperWCW/Speisekammer_HomeAssistant",
-  "issue_tracker": "https://github.com/SniperWCW/Speisekammer_HomeAssistant/issues",
+  "name": "Speisekammer Vorratskammer",
+  "version": "0.1.0",
+  "documentation": "https://app.speisekammer.app/developer",
+  "requirements": [],
   "dependencies": [],
-  "codeowners": ["@SniperWCW"],
+  "codeowners": ["@SniperWCW"]
   "config_flow": true
 }
