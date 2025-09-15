@@ -3,9 +3,38 @@
     "step": {
       "user": {
         "title": "Speisekammer Token eingeben",
-        "description": "Gib deinen API-Token ein.",
+        "description": "Gib deinen persönlichen API-Token ein, um deine Lagerorte abzurufen.",
         "data": {
           "token": "API Token"
+        }
+      },
+      "select_community": {
+        "title": "Community auswählen",
+        "description": "Wähle die Speisekammer-Community, die du verbinden möchtest.",
+        "data": {
+          "community_id": "Community"
+        }
+      }
+    },
+    "error": {
+      "invalid_token": "Ungültiger Token oder keine Communities gefunden.",
+      "cannot_connect": "Verbindung zur Speisekammer API fehlgeschlagen.",
+      "unknown": "Ein unbekannter Fehler ist aufgetreten."
+    },
+    "abort": {
+      "already_configured": "Diese Community ist bereits eingerichtet.",
+      "no_communities": "Es wurden keine Communities gefunden.",
+      "missing_token": "Es wurde kein Token angegeben."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "default": {
+        "name": "Speisekammer Sensor",
+        "state": {
+          "unknown": "Unbekannt",
+          "empty": "Leer",
+          "active": "Aktiv"
         }
       }
     }
