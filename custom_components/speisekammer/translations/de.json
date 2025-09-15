@@ -1,40 +1,12 @@
 {
-  "title": "Speisekammer",
   "config": {
     "step": {
       "user": {
-        "title": "API-Zugang einrichten",
-        "description": "Bitte den API-Token deiner Speisekammer-App eingeben.",
+        "title": "Speisekammer Token eingeben",
+        "description": "Gib deinen API-Token ein.",
         "data": {
-          "token": "API-Token"
+          "token": "API Token"
         }
-      },
-      "select_community": {
-        "title": "Community auswählen",
-        "description": "Wähle die Community aus, deren Artikel angezeigt werden sollen.",
-        "data": {
-          "community_id": "Community"
-        }
-      }
-    },
-    "error": {
-      "cannot_connect": "Verbindung fehlgeschlagen. Bitte überprüfe den Token.",
-      "invalid_community": "Ungültige Community-ID ausgewählt."
-    },
-    "abort": {
-      "already_configured": "Diese Community ist bereits konfiguriert."
-    }
-  },
-  "entity": {
-    "sensor": {
-      "expiring_items": {
-        "name": "Artikel bald ablaufend"
-      },
-      "total_items": {
-        "name": "Gesamtanzahl Artikel"
-      },
-      "items_per_location": {
-        "name": "Artikel pro Lagerort"
       }
     }
   }
