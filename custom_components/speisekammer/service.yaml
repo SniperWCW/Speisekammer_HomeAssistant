@@ -1,0 +1,21 @@
+# custom_components/speisekammer/services.yaml
+
+update_item:
+  name: "Update item"
+  description: "Aktualisiert oder erstellt einen Artikel in der Speisekammer."
+  fields:
+    gtin:
+      description: "GTIN des Artikels"
+      example: "1234567890123"
+    description:
+      description: "Artikelbeschreibung"
+      example: "Milch 1L"
+    count:
+      description: "Anzahl"
+      example: 2
+    best_before:
+      description: "Mindesthaltbarkeitsdatum (optional)"
+      example: "2025-09-23"
+    community_id:
+      description: "ID der Community"
+      example: "meine-community-id"
