@@ -53,17 +53,20 @@ class StorageLocationSensor(SensorEntity):
         table = []
         for item in items:
             for attr in item.get("attributes", []):
-                if attr.get("count", 0) > 0:
+                count = attr.get("count", 0)
+                if count > 0:
                     table.append({
                         "Name": item.get("name", "Unbekannt"),
-                        "Menge": attr.get("count", 1),
+                        "Menge": count,
                         "GTIN": item.get("gtin", ""),
                         "Ablaufdatum": attr.get("bestBeforeDate", "")
                     })
 
+        # ✅ State setzen basierend auf gefilterter Tabelle
         self._attr_state = len(table)
         self._attr_extra_state_attributes = {
             "table": table,
             "Lagerplatz": self._location_name,
             "Artikelanzahl": len(table)
         }
+
