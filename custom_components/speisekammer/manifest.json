@@ -1,10 +1,10 @@
 {
   "domain": "speisekammer",
   "name": "Speisekammer Vorratskammer",
-  "version": "0.1.0",
-  "documentation": "https://app.speisekammer.app/developer",
+  "documentation": "https://github.com/SniperWCW/Speisekammer_HomeAssistant/",
+  "version": "1.0.0",
   "requirements": [],
   "dependencies": [],
-  "codeowners": ["@SniperWCW"]
+  "codeowners": ["@SniperWCW"],
   "config_flow": true
 }
