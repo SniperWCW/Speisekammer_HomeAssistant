@@ -14,3 +14,27 @@ SwaggerAPI Doku unter https://app.speisekammer.app/developer
 <img width="549" height="612" alt="image" src="https://github.com/user-attachments/assets/7f99f02a-5758-4667-8f87-78c0acd6232b" />
 
 
+Zum Ändern und Aktualisieren der Daten muss in der configuration.yaml folgendes hinzugefügt werden
+input_text:
+  sk_gtin:
+    name: GTIN
+    initial: ""
+  sk_description:
+    name: Beschreibung
+    initial: ""
+  sk_community_id:
+    name: Community-ID
+    initial: "DEINE_COMMUNITY_ID"
+
+input_number:
+  sk_count:
+    name: Anzahl
+    min: 0
+    max: 100
+    step: 1
+
+input_datetime:
+  sk_best_before:
+    name: MHD
+    has_date: true
+    has_time: false
