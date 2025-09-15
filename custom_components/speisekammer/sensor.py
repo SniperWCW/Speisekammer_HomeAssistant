@@ -8,10 +8,11 @@ import logging
 
 _LOGGER = logging.getLogger(__name__)
 
-async def async_setup_platform(hass, config, async_add_entities, discovery_info=None):
-    """Setup der Sensoren über Platform (aufgerufen von ConfigEntry)."""
-    token = config.get("token")
-    community_id = config.get(CONF_COMMUNITY_ID)
+# Dieser Eintrag wird von ConfigEntry aufgerufen
+async def async_setup_entry(hass, entry, async_add_entities):
+    """Setup der Sensoren über ConfigEntry."""
+    token = entry.data.get("token")
+    community_id = entry.data.get(CONF_COMMUNITY_ID)
     api = SpeisekammerAPI(token)
 
     sensors = [
@@ -23,7 +24,7 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
 
     async_add_entities(sensors, update_before_add=True)
 
-
+# Klassendefinitionen (gleich wie vorher)
 class ExpiringItemsSensor(Entity):
     """Sensor: Anzahl Artikel mit MHD in den nächsten X Tagen."""
 
