@@ -1,68 +1,17 @@
-import logging
-import voluptuous as vol
-from homeassistant import config_entries
-from .const import DOMAIN, CONF_TOKEN, CONF_COMMUNITY_ID
-from .api import SpeisekammerAPI
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.core import HomeAssistant
+from .const import DOMAIN
 
-_LOGGER = logging.getLogger(__name__)
+async def async_setup(hass: HomeAssistant, config: dict):
+    """Set up the integration (YAML not used)."""
+    return True
 
-class SpeisekammerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
-    """ConfigFlow für Speisekammer."""
+async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
+    """Set up a config entry."""
+    # Sensor-Plattform laden
+    await hass.config_entries.async_forward_entry_setups(entry, ["sensor"])
+    return True
 
-    VERSION = 1
-
-    def __init__(self):
-        self._token = None
-        self._communities = None
-
-    async def async_step_user(self, user_input=None):
-        """Schritt 1: Token abfragen."""
-        errors = {}
-
-        if user_input is not None:
-            self._token = user_input[CONF_TOKEN]
-            api = SpeisekammerAPI(self._token)
-
-            try:
-                self._communities = await api.get_communities()
-
-                if not self._communities:
-                    errors["base"] = "no_communities"
-                elif len(self._communities) == 1:
-                    # Direkt Community setzen
-                    return self.async_create_entry(
-                        title="Speisekammer",
-                        data={
-                            CONF_TOKEN: self._token,
-                            CONF_COMMUNITY_ID: self._communities[0]["id"]
-                        }
-                    )
-                else:
-                    # Mehrere Communities → Auswahl anbieten
-                    return await self.async_step_select_community()
-            except Exception:
-                errors["base"] = "cannot_connect"
-
-        data_schema = vol.Schema({vol.Required(CONF_TOKEN): str})
-        return self.async_show_form(step_id="user", data_schema=data_schema, errors=errors)
-
-    async def async_step_select_community(self, user_input=None):
-        """Schritt 2: Auswahl der Community."""
-        errors = {}
-
-        if user_input is not None:
-            community_id = user_input[CONF_COMMUNITY_ID]
-            return self.async_create_entry(
-                title="Speisekammer",
-                data={
-                    CONF_TOKEN: self._token,
-                    CONF_COMMUNITY_ID: community_id
-                }
-            )
-
-        community_dict = {c["id"]: c["name"] for c in self._communities}
-        data_schema = vol.Schema(
-            {vol.Required(CONF_COMMUNITY_ID): vol.In(community_dict)}
-        )
-
-        return self.async_show_form(step_id="select_community", data_schema=data_schema, errors=errors)
+async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry):
+    """Unload a config entry."""
+    return await hass.config_entries.async_unload_platforms(entry, ["sensor"])
