@@ -44,3 +44,22 @@ class SpeisekammerAPI:
                     url
                 )
                 return []
+                
+    async def get_item_by_gtin(self, community_id: str, location_id: str, gtin: str):
+        url = f"{self._base_url}/stock/{community_id}/{location_id}/{gtin}"
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url, headers=self._headers()) as resp:
+                if resp.status == 200:
+                    return await resp.json()
+                _LOGGER.error("Fehler beim Abrufen des Artikels: %s – URL: %s", resp.status, url)
+                return None
+
+    async def update_stock(self, community_id: str, location_id: str, items: list):
+        url = f"{self._base_url}/stock/{community_id}/{location_id}"
+        async with aiohttp.ClientSession() as session:
+            async with session.put(url, headers=self._headers(), json=items) as resp:
+                if resp.status == 200:
+                    _LOGGER.debug("Lagerbestand erfolgreich aktualisiert für %s", location_id)
+                    return await resp.json()
+                _LOGGER.error("Fehler beim Aktualisieren des Lagerbestands: %s – URL: %s", resp.status, url)
+                return None
