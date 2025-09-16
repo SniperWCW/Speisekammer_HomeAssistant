@@ -13,7 +13,9 @@ SwaggerAPI Doku unter https://app.speisekammer.app/developer
 
 ```yaml
 type: custom:flex-table-card
-title: Lagerplatz 1-1
+title: Artikelübersicht
+enable_search: true
+selectable: true
 sort_by: table.Name
 entities:
   - sensor.lagerplatz_1_1
@@ -28,17 +30,30 @@ entities:
 columns:
   - data: table.Name
     name: Artikel
+    modify: |
+      x ? `<div style="overflow-wrap: anywhere;">${x}</div>` : ''
   - data: table.Menge
     name: Menge
   - data: table.GTIN
     name: GTIN
+    modify: |
+      x ? `<div style="overflow-wrap: anywhere;">${x}</div>` : ''
   - data: table.Ablaufdatum
     name: Ablaufdatum
-    modify: |
-      x ? (new Date(x).toLocaleDateString('de-DE')) : '–'
+    modify: >
+      x ? `<div style="overflow-wrap: anywhere;">${new
+      Date(x).toLocaleDateString('de-DE')}</div>` : '–'
   - data: table.Lagerplatz
     name: Lagerplatz
+    modify: |
+      x ? `<div style="overflow-wrap: anywhere;">${x}</div>` : ''
+  - data: table.image_front_small_url
+    name: Bild
+    modify: |
+      x ? `<img src="${x}" style="height: 80px; border-radius: 4px;">` : ''
+
 ```
-<img width="1314" height="246" alt="image" src="https://github.com/user-attachments/assets/72431329-1061-46c7-90ee-b9fd64ddcc03" />
+<img width="1351" height="472" alt="image" src="https://github.com/user-attachments/assets/7266f4a6-5da3-4d7a-8e36-253b49a33d4a" />
+
 
 
