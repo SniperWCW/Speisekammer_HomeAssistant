@@ -11,6 +11,7 @@ SwaggerAPI Doku unter https://app.speisekammer.app/developer
 4. Es wird für jeden Lagerort ein Sensor angelegt
 5. Lagerplatz als custom-table-flex Card
 
+```yaml
 type: custom:flex-table-card
 title: Lagerplatz 1-1
 entities:
@@ -24,7 +25,8 @@ columns:
     name: GTIN
   - data: table.Ablaufdatum
     name: Ablaufdatum
-    modify: |
-      x ? (new Date(x).toLocaleDateString('de-DE')) : '–'
+modify: |
+  x ? (new Date(x).toLocaleDateString('de-DE')) : '–'
+```
 <img width="1349" height="304" alt="image" src="https://github.com/user-attachments/assets/77a49658-47a8-4b69-8af3-b602c7492c2a" />
 
