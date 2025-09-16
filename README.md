@@ -55,5 +55,115 @@ columns:
 ```
 <img width="1351" height="472" alt="image" src="https://github.com/user-attachments/assets/7266f4a6-5da3-4d7a-8e36-253b49a33d4a" />
 
+In Entwicklung
+Artikel hinzufügen
+1. Helfer anlegen
+```YAML
+input_text:
+  gtin_eingabe:
+    name: GTIN Eingabe
+    max: 13
 
+input_number:
+  menge_eingabe:
+    name: Menge
+    min: 1
+    max: 100
+    step: 1
+
+input_datetime:
+  mhd_eingabe:
+    name: Mindesthaltbarkeitsdatum
+    has_date: true
+    has_time: false
+
+input_select:
+  lagerort_auswahl:
+    name: Lagerort
+    options:
+      - Bitte wählen
+    initial: Bitte wählen
+
+```
+
+2. Automation
+```YAML
+alias: Lagerort prüfen nach GTIN
+trigger:
+  - platform: state
+    entity_id: input_text.gtin_eingabe
+condition:
+  - condition: template
+    value_template: "{{ trigger.to_state.state | length == 13 }}"
+action:
+  - service: speisekammer.get_locations_for_gtin
+    data:
+      gtin: "{{ states('input_text.gtin_eingabe') }}"
+```
+3. Skript
+```YAML
+alias: Artikel erfassen
+sequence:
+  - service: speisekammer.add_item
+    data:
+      gtin: "{{ states('input_text.gtin_eingabe') }}"
+      count: "{{ states('input_number.menge_eingabe') | int }}"
+      best_before: "{{ states('input_datetime.mhd_eingabe') }}"
+      location_id: "{{ state_attr('input_select.lagerort_auswahl', 'option') }}"
+```
+```YAML
+alias: Lagerort prüfen
+sequence:
+  - service: speisekammer.get_locations_for_gtin
+    data:
+      gtin: "{{ states('input_text.gtin_eingabe') }}"
+mode: single
+```
+4. Lovelance Dashboard Artikelerfassung
+```YAML
+title: Speisekammer Artikelerfassung
+type: vertical-stack
+cards:
+  - type: entities
+    title: Artikel-Daten eingeben
+    entities:
+      - entity: input_text.gtin_eingabe
+        name: GTIN
+      - entity: input_number.menge_eingabe
+        name: Menge
+      - entity: input_datetime.mhd_eingabe
+        name: MHD
+      - entity: input_select.lagerort_auswahl
+        name: Lagerort
+  - type: horizontal-stack
+    cards:
+      - type: button
+        name: Lagerort prüfen
+        icon: mdi:database-search
+        tap_action:
+          action: call-service
+          service: speisekammer.get_locations_for_gtin
+          service_data:
+            gtin: "{{ states('input_text.gtin_eingabe') }}"
+      - type: button
+        name: Artikel eintragen
+        icon: mdi:package-plus
+        tap_action:
+          action: call-service
+          service: speisekammer.add_item
+          service_data:
+            gtin: "{{ states('input_text.gtin_eingabe') }}"
+            count: "{{ states('input_number.menge_eingabe') | int }}"
+            best_before: "{{ states('input_datetime.mhd_eingabe') }}"
+            location_id: >
+              {% set name = states('input_select.lagerort_auswahl') %} {% set
+              map = {
+                'Keller': 'loc_001',
+                'Küche': 'loc_002',
+                'Garage': 'loc_003'
+              } %} {{ map.get(name, 'loc_001') }}
+  - type: sensor
+    entity: sensor.speisekammer_artikelabfrage
+    name: Artikelvorschau
+```
 
