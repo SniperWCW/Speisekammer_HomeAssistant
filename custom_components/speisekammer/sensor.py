@@ -47,47 +47,60 @@ class StorageLocationSensor(SensorEntity):
         self._community_id = community_id
         self._location_id = location_id
         self._location_name = location_name
-
         self._attr_name = f"Lagerplatz: {location_name}"
-        self._attr_unique_id = f"speisekammer_lagerplatz_{location_id}"
+        self._attr_unique_id = f"speisekammer_lagerplatz_{self._location_id}"
         self._attr_icon = "mdi:package-variant"
-        self._attr_unit_of_measurement = "Artikel"
+        self._attr_native_unit_of_measurement = "Artikel"
         self._attr_should_poll = True
-        self._attr_state = 0
+        self._state = 0
         self._attr_extra_state_attributes = {
             "table": [],
             "Lagerplatz": location_name,
             "Artikelanzahl": 0
         }
 
+    @property
+    def native_value(self):
+        return self._state
+
     async def async_update(self):
-        items = await self._api.get_items(self._community_id, self._location_id)
-        table = []
+        try:
+            items = await self._api.get_items(self._community_id, self._location_id)
+            table = []
 
-        for item in items or []:
-            for attr in item.get("attributes", []):
-                count = attr.get("count", 0)
-                if count > 0:
-                    gtin = item.get("gtin", "")
-                    off_data = await fetch_openfoodfacts(gtin) if gtin else {}
-                    image_url = off_data.get("product", {}).get("image_front_small_url", "")
+            for item in items or []:
+                for attr in item.get("attributes", []):
+                    count = attr.get("count", 0)
+                    if count > 0:
+                        gtin = item.get("gtin", "")
+                        off_data = await fetch_openfoodfacts(gtin) if gtin else {}
+                        image_url = off_data.get("product", {}).get("image_front_small_url", "")
+                    
+                        table.append({
+                            "Name": item.get("name", "Unbekannt"),
+                            "Menge": count,
+                            "GTIN": item.get("gtin", ""),
+                            "Ablaufdatum": attr.get("bestBeforeDate", ""),
+                            "Lagerplatz": self._location_name,
+                            "image_front_small_url": image_url
+                        })
 
-                    table.append({
-                        "Name": item.get("name", "Unbekannt"),
-                        "Menge": count,
-                        "GTIN": gtin,
-                        "Ablaufdatum": attr.get("bestBeforeDate", ""),
-                        "Lagerplatz": self._location_name,
-                        "image_front_small_url": image_url
-                    })
+            table.sort(key=lambda x: x.get("Ablaufdatum") or "9999-12-31")
+            self._state = len(table)  # sinnvoll: Anzahl der Artikel als State
+            self._attr_extra_state_attributes = {
+                "table": table,
+                "Lagerplatz": self._location_name,
+                "Artikelanzahl": len(table)
+            }
 
-        table.sort(key=lambda x: x.get("Ablaufdatum") or "")
-        self._attr_state = len(table)
-        self._attr_extra_state_attributes = {
-            "table": table,
-            "Lagerplatz": self._location_name,
-            "Artikelanzahl": len(table)
-        }
+        except Exception as e:
+            _LOGGER.error("Fehler beim Update von %s: %s", self._location_name, e)
+            self._state = None
+            self._attr_extra_state_attributes = {
+                "table": [],
+                "Lagerplatz": self._location_name,
+                "Artikelanzahl": 0
+            }
 
 class SingleItemSensor(SensorEntity):
     def __init__(self, api: SpeisekammerAPI, community_id: str, location_id: str):
