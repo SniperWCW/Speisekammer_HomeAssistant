@@ -1,0 +1,13 @@
+update_stock:
+  name: Lagerbestand aktualisieren
+  description: Sendet eine neue Artikel-Liste an einen Lagerort.
+  fields:
+    location_id:
+      description: Die ID des Lagerorts
+      example: "2UdZ35tsJfIJ7IlYCAVv"
+    items:
+      description: Liste der Artikel mit GTIN, Menge und MHD
+      example:
+        - gtin: "8001250120342"
+          count: 3
+          bestBeforeDate: "2025-12-31"
