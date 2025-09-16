@@ -64,7 +64,8 @@ class StorageLocationSensor(SensorEntity):
                         "Name": item.get("name", "Unbekannt"),
                         "Menge": count,
                         "GTIN": item.get("gtin", ""),
-                        "Ablaufdatum": attr.get("bestBeforeDate", "")
+                        "Ablaufdatum": attr.get("bestBeforeDate", ""),
+                        "Lagerplatz": self._location_name  # 👈 Hier kommt der Lagerort rein
                     })
 
         self._attr_state = len(table)
