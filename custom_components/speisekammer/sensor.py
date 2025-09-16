@@ -5,6 +5,7 @@ from homeassistant.core import HomeAssistant
 from .api import SpeisekammerAPI
 from .const import DOMAIN, CONF_TOKEN, CONF_COMMUNITY_ID
 import logging
+import aiohttp
 
 _LOGGER = logging.getLogger(__name__)
 SCAN_INTERVAL = timedelta(minutes=10)
@@ -22,7 +23,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
         location_name = location["name"]
         entities.append(StorageLocationSensor(api, community_id, location_id, location_name))
 
-    # GTIN-Sensor für gezielte Abfrage (optional: nur für ersten Lagerort)
     if locations:
         gtin_sensor = SingleItemSensor(api, community_id, locations[0]["id"])
         gtin_sensor.set_hass(hass)
@@ -30,9 +30,18 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
 
     async_add_entities(entities, update_before_add=True)
 
-class StorageLocationSensor(SensorEntity):
-    """Sensor für einen Lagerort mit flex-table-kompatiblen Attributen."""
+async def fetch_openfoodfacts(gtin: str) -> dict:
+    url = f"https://world.openfoodfacts.org/api/v2/product/{gtin}.json"
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url) as response:
+                if response.status == 200:
+                    return await response.json()
+    except Exception as e:
+        _LOGGER.warning("OpenFoodFacts Fehler für GTIN %s: %s", gtin, e)
+    return {}
 
+class StorageLocationSensor(SensorEntity):
     def __init__(self, api: SpeisekammerAPI, community_id: str, location_id: str, location_name: str):
         self._api = api
         self._community_id = community_id
@@ -52,7 +61,6 @@ class StorageLocationSensor(SensorEntity):
         }
 
     async def async_update(self):
-        _LOGGER.debug("Aktualisiere Lagerplatz: %s", self._location_name)
         items = await self._api.get_items(self._community_id, self._location_id)
         table = []
 
@@ -60,14 +68,20 @@ class StorageLocationSensor(SensorEntity):
             for attr in item.get("attributes", []):
                 count = attr.get("count", 0)
                 if count > 0:
+                    gtin = item.get("gtin", "")
+                    off_data = await fetch_openfoodfacts(gtin) if gtin else {}
+                    image_url = off_data.get("product", {}).get("image_front_small_url", "")
+
                     table.append({
                         "Name": item.get("name", "Unbekannt"),
                         "Menge": count,
-                        "GTIN": item.get("gtin", ""),
+                        "GTIN": gtin,
                         "Ablaufdatum": attr.get("bestBeforeDate", ""),
-                        "Lagerplatz": self._location_name  # 👈 Hier kommt der Lagerort rein
+                        "Lagerplatz": self._location_name,
+                        "image_front_small_url": image_url
                     })
 
+        table.sort(key=lambda x: x.get("Ablaufdatum") or "")
         self._attr_state = len(table)
         self._attr_extra_state_attributes = {
             "table": table,
@@ -76,8 +90,6 @@ class StorageLocationSensor(SensorEntity):
         }
 
 class SingleItemSensor(SensorEntity):
-    """Sensor für gezielte GTIN-Abfrage über input_text."""
-
     def __init__(self, api: SpeisekammerAPI, community_id: str, location_id: str):
         self._api = api
         self._community_id = community_id
@@ -101,9 +113,15 @@ class SingleItemSensor(SensorEntity):
             return
 
         item = await self._api.get_item_by_gtin(self._community_id, self._location_id, gtin)
+        off_data = await fetch_openfoodfacts(gtin)
+        image_url = off_data.get("product", {}).get("image_front_small_url", "")
+
         if not item:
             self._attr_state = "Nicht gefunden"
-            self._attr_extra_state_attributes = {}
+            self._attr_extra_state_attributes = {
+                "GTIN": gtin,
+                "Bild": image_url
+            }
             return
 
         attr = item.get("attributes", [{}])[0]
@@ -112,5 +130,6 @@ class SingleItemSensor(SensorEntity):
             "GTIN": item.get("gtin", gtin),
             "Menge": attr.get("count", 0),
             "MHD": attr.get("bestBeforeDate", "–"),
-            "Beschreibung": item.get("description", "")
+            "Beschreibung": item.get("description", ""),
+            "Bild": image_url
         }
