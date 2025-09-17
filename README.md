@@ -54,7 +54,7 @@ columns:
 
 ```
 <img width="1351" height="472" alt="image" src="https://github.com/user-attachments/assets/7266f4a6-5da3-4d7a-8e36-253b49a33d4a" />
-
+--------------------
 In Entwicklung
 <img width="923" height="689" alt="image" src="https://github.com/user-attachments/assets/61a190ea-edac-4044-a260-f71d16eb94b9" />
 
@@ -145,5 +145,114 @@ cards:
   - type: sensor
     entity: sensor.speisekammer_artikelabfrage
     name: Artikelvorschau
+```
+-----------------------------
+**INVENTUR Modus aktuell noch nicht funktionsfähig**
+Helfer anlegen
+```YAML
+input_boolean:
+  inventurmodus:
+    name: Inventurmodus
+    icon: mdi:clipboard-list
+    initial: off
+```
+Dashboard anlegen
+```YAML
+type: entities
+title: Speisekammer Inventur
+entities:
+  - entity: input_boolean.inventurmodus
+    name: Inventurmodus aktiv
+  - entity: sensor.speisekammer_inventur
+    name: Status
+    attribute: table_data
+```
+```YAML
+type: horizontal-stack
+cards:
+  - show_name: true
+    show_icon: true
+    type: button
+    name: Start Inventur
+    icon: mdi:play
+    tap_action:
+      action: call-service
+      service: speisekammer.start_inventur
+      service_data:
+        community_id: <deine_community_id>
+        location_id: "{{ states('input_select.lagerort_auswahl') }}"
+    show_state: false
+  - type: button
+    name: Scan Artikel
+    icon: mdi:barcode-scan
+    tap_action:
+      action: call-service
+      service: speisekammer.scan_article
+      service_data:
+        gtin: "{{ states('input_text.gtin_eingabe') }}"
+        count: "{{ states('input_number.menge_eingabe') | int }}"
+        mhd: "{{ states('input_datetime.mhd_eingabe') }}"
+        entry_id: default
+    show_state: false
+  - type: button
+    name: Stop Inventur
+    icon: mdi:stop
+    tap_action:
+      action: call-service
+      service: speisekammer.stop_inventur
+      service_data:
+        community_id: <deine_community_id>
+        entry_id: default
+    show_state: false
+```
+```YAML
+type: entities
+title: Artikel scannen
+show_header_toggle: false
+entities:
+  - entity: input_text.gtin_eingabe
+    name: Artikel GTIN
+  - entity: input_number.menge_eingabe
+    name: Menge
+  - entity: input_datetime.mhd_eingabe
+    name: MHD
+  - entity: input_select.lagerort_auswahl
+    name: Lagerort
+```
+```YAML
+type: custom:flex-table-card
+title: Inventur Übersicht
+entities:
+  - entity: sensor.speisekammer_inventur
+    attribute: table_data
+columns:
+  - title: Name
+    field: Name
+    width: 250
+    sortable: true
+  - title: Barcode
+    field: Barcode
+    width: 120
+    sortable: true
+  - title: Menge SOLL
+    field: Menge_SOLL
+    width: 90
+    sortable: true
+  - title: Menge IST
+    field: Menge_IST
+    width: 90
+    sortable: true
+    style: |
+      [[[
+        if (row.Menge_SOLL !== row.Menge_IST) return 'background-color: #ffcdd2';
+        return '';
+      ]]]
+  - title: Lager
+    field: Lager
+    width: 120
+  - title: MHD
+    field: MHD
+    width: 120
+    formatter: datetime
 ```
 
