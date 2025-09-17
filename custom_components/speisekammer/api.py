@@ -51,15 +51,40 @@ class SpeisekammerAPI:
             async with session.get(url, headers=self._headers()) as resp:
                 if resp.status == 200:
                     return await resp.json()
-                _LOGGER.error("Fehler beim Abrufen des Artikels: %s – URL: %s", resp.status, url)
-                return None
+                elif resp.status == 404:
+                    _LOGGER.warning("GTIN %s nicht gefunden in Lagerort %s", gtin, location_id)
+                    return None
+                else:
+                    _LOGGER.error("Fehler beim Abrufen des Artikels: %s – URL: %s", resp.status, url)
+                    return None
 
     async def update_stock(self, community_id: str, location_id: str, items: list):
         url = f"{self._base_url}/stock/{community_id}/{location_id}"
         async with aiohttp.ClientSession() as session:
             async with session.put(url, headers=self._headers(), json=items) as resp:
                 if resp.status == 200:
-                    _LOGGER.debug("Lagerbestand erfolgreich aktualisiert für %s", location_id)
+                    _LOGGER.info("Lagerbestand erfolgreich aktualisiert für %s", location_id)
                     return await resp.json()
                 _LOGGER.error("Fehler beim Aktualisieren des Lagerbestands: %s – URL: %s", resp.status, url)
                 return None
+
+    # NEU: Artikel hinzufügen
+    async def add_item(self, community_id: str, location_id: str, gtin: str, count: int, best_before: str):
+        """
+        Fügt einen neuen Artikel in den Lagerort ein.
+        """
+        payload = {
+            "gtin": gtin,
+            "count": count,
+            "bestBeforeDate": best_before,
+            "locationId": location_id
+        }
+        url = f"{self._base_url}/stock/{community_id}/{location_id}/add"
+        async with aiohttp.ClientSession() as session:
+            async with session.post(url, headers=self._headers(), json=payload) as resp:
+                if resp.status == 200:
+                    _LOGGER.info("Artikel erfolgreich hinzugefügt: %s (%s Stück) in %s", gtin, count, location_id)
+                    return await resp.json()
+                text = await resp.text()
+                _LOGGER.error("Fehler beim Hinzufügen des Artikels: %s – %s", resp.status, text)
+                raise Exception(f"Fehler beim Hinzufügen des Artikels: {resp.status} {text}")
