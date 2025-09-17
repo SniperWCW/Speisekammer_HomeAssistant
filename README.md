@@ -129,31 +129,21 @@ cards:
       - show_name: true
         show_icon: true
         type: button
-        name: Lagerort prüfen
+        name: Artikel laden
         icon: mdi:database-search
         tap_action:
           action: call-service
           service: script.lagerort_prufen
-      - type: button
-        name: Artikel eintragen
-        icon: mdi:package-plus
+      - show_name: true
+        show_icon: true
+        type: button
+        name: Artikel ändern
+        icon: mdi:package-variant
         tap_action:
           action: call-service
-          service: speisekammer.add_item
-          service_data:
-            gtin: "{{ states('input_text.gtin_eingabe') }}"
-            count: "{{ states('input_number.menge_eingabe') | int }}"
-            best_before: "{{ states('input_datetime.mhd_eingabe') }}"
-            location_id: >
-              {% set name = states('input_select.lagerort_auswahl') %} {% set
-              map = {
-                'Keller': 'loc_001',
-                'Küche': 'loc_002',
-                'Garage': 'loc_003'
-              } %} {{ map.get(name, 'loc_001') }}
+          service: script.artikel_erfassen
   - type: sensor
     entity: sensor.speisekammer_artikelabfrage
     name: Artikelvorschau
-
 ```
 
