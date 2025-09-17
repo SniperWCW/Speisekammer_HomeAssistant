@@ -24,7 +24,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     # Speichere API und Config
     hass.data[DOMAIN][entry.entry_id] = {
         "api": api,
-        "config": entry.data
+        "community_id": community_id,
+        "config": entry.data,
     }
 
     # --- Update Stock Service ---
@@ -38,9 +39,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     _LOGGER.info("Service speisekammer.update_stock erfolgreich registriert")
 
     # --- Inventur Services ---
-    inventur = Inventur(hass, api)
+    inventur = Inventur(
+        hass=hass,
+        api=api,
+        entry_id=entry.entry_id,      # entry_id korrekt übergeben
+        community_id=community_id     # community_id fest hinterlegt
+    )
     register_services(hass, inventur)
-    _LOGGER.info("Inventur-Services registriert: start_inventur, scan_article, stop_inventur")
+    _LOGGER.info(
+        "Inventur-Services registriert: start_inventur, scan_article, stop_inventur"
+    )
 
     # Sensor Plattform laden (alles wird über sensor.py registriert)
     await hass.config_entries.async_forward_entry_setups(entry, ["sensor"])
