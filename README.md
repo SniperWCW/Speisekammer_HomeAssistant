@@ -165,6 +165,20 @@ input_boolean:
     icon: mdi:clipboard-list
     initial: off
 ```
+Skript anlegen
+```YAML
+alias: Start Inventur mit Lagerortprüfung
+description: Prüft den Lagerort anhand der GTIN und startet dann die Inventur
+mode: single
+sequence:
+  - data:
+      gtin: "{{ states('input_text.gtin_eingabe') }}"
+    action: speisekammer.get_locations_for_gtin
+  - delay:
+      seconds: 1
+  - data: {}
+    action: speisekammer.start_inventur
+```
 Dashboard anlegen
 ```YAML
 type: entities
@@ -185,15 +199,16 @@ cards:
     name: Start Inventur
     icon: mdi:play
     tap_action:
-      action: call-service
-      service: speisekammer.start_inventur
-      service_data:
-        community_id: <deine_community_id>
-        location_id: "{{ states('input_select.lagerort_auswahl') }}"
+      action: perform-action
+      perform_action: script.start_inventur_mit_lagerortprufung
+      target: {}
     show_state: false
   - type: button
     name: Scan Artikel
     icon: mdi:barcode-scan
+    show_name: true
+    show_icon: true
+    show_state: false
     tap_action:
       action: call-service
       service: speisekammer.scan_article
@@ -201,18 +216,22 @@ cards:
         gtin: "{{ states('input_text.gtin_eingabe') }}"
         count: "{{ states('input_number.menge_eingabe') | int }}"
         mhd: "{{ states('input_datetime.mhd_eingabe') }}"
-        entry_id: default
-    show_state: false
+        entry_id: >-
+          {{ state_attr('sensor.speisekammer_inventur', 'entry_id') |
+          default('default') }}
   - type: button
     name: Stop Inventur
     icon: mdi:stop
+    show_name: true
+    show_icon: true
+    show_state: false
     tap_action:
       action: call-service
       service: speisekammer.stop_inventur
       service_data:
-        community_id: <deine_community_id>
-        entry_id: default
-    show_state: false
+        entry_id: >-
+          {{ state_attr('sensor.speisekammer_inventur', 'entry_id') |
+          default('default') }}
 ```
 ```YAML
 type: entities
@@ -233,35 +252,19 @@ type: custom:flex-table-card
 title: Inventur Übersicht
 entities:
   - entity: sensor.speisekammer_inventur
-    attribute: table_data
 columns:
-  - title: Name
-    field: Name
-    width: 250
-    sortable: true
-  - title: Barcode
-    field: Barcode
-    width: 120
-    sortable: true
-  - title: Menge SOLL
-    field: Menge_SOLL
-    width: 90
-    sortable: true
-  - title: Menge IST
-    field: Menge_IST
-    width: 90
-    sortable: true
-    style: |
-      [[[
-        if (row.Menge_SOLL !== row.Menge_IST) return 'background-color: #ffcdd2';
-        return '';
-      ]]]
-  - title: Lager
-    field: Lager
-    width: 120
-  - title: MHD
-    field: MHD
-    width: 120
-    formatter: datetime
+  - data: table_data.Name
+    name: Artikel
+  - data: table_data.Barcode
+    name: Barcode
+  - data: table_data.Menge_SOLL
+    name: Menge SOLL
+  - data: table_data.Menge_IST
+    name: Menge IST
+  - data: table_data.Lager
+    name: Lager
+  - data: table_data.MHD
+    name: MHD
+
 ```
 
