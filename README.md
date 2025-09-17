@@ -85,38 +85,23 @@ input_select:
     initial: Bitte wählen
 
 ```
-
-2. Automation
-```YAML
-alias: Lagerort prüfen nach GTIN
-trigger:
-  - platform: state
-    entity_id: input_text.gtin_eingabe
-condition:
-  - condition: template
-    value_template: "{{ trigger.to_state.state | length == 13 }}"
-action:
-  - service: speisekammer.get_locations_for_gtin
-    data:
-      gtin: "{{ states('input_text.gtin_eingabe') }}"
-```
-3. Skript
+2. Skript
 ```YAML
 alias: Artikel erfassen
 sequence:
-  - service: speisekammer.add_item
-    data:
+  - data:
       gtin: "{{ states('input_text.gtin_eingabe') }}"
       count: "{{ states('input_number.menge_eingabe') | int }}"
       best_before: "{{ states('input_datetime.mhd_eingabe') }}"
-      location_id: "{{ state_attr('input_select.lagerort_auswahl', 'option') }}"
+      location_name: "{{ states('input_select.lagerort_auswahl') }}"
+    action: speisekammer.add_item
 ```
 ```YAML
 alias: Lagerort prüfen
 sequence:
-  - service: speisekammer.get_locations_for_gtin
-    data:
+  - data:
       gtin: "{{ states('input_text.gtin_eingabe') }}"
+    action: speisekammer.get_locations_for_gtin
 mode: single
 ```
 4. Lovelance Dashboard Artikelerfassung
@@ -129,6 +114,8 @@ cards:
     entities:
       - entity: input_text.gtin_eingabe
         name: GTIN
+      - entity: sensor.speisekammer_artikelabfrage
+        name: Artikelname
       - entity: input_number.menge_eingabe
         name: Menge
       - entity: input_datetime.mhd_eingabe
@@ -137,14 +124,14 @@ cards:
         name: Lagerort
   - type: horizontal-stack
     cards:
-      - type: button
+      - show_name: true
+        show_icon: true
+        type: button
         name: Lagerort prüfen
         icon: mdi:database-search
         tap_action:
           action: call-service
-          service: speisekammer.get_locations_for_gtin
-          service_data:
-            gtin: "{{ states('input_text.gtin_eingabe') }}"
+          service: script.lagerort_prufen
       - type: button
         name: Artikel eintragen
         icon: mdi:package-plus
@@ -165,5 +152,6 @@ cards:
   - type: sensor
     entity: sensor.speisekammer_artikelabfrage
     name: Artikelvorschau
+
 ```
 
