@@ -38,7 +38,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
         entities.append(gtin_sensor)
 
     # Inventur Sensor
-    inventur = Inventur(hass, api)
+    inventur = Inventur(hass, api, entry_id=entry.entry_id, community_id=community_id)
     register_services(hass, inventur)
     inventur_sensor = InventurSensor(inventur)
     entities.append(inventur_sensor)
@@ -53,7 +53,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
         best_before = call.data.get("best_before")
         location_name = call.data.get("location_name")
 
-        # Mapping prüfen, ggf. nachladen
         location_map = hass.data.get("speisekammer_location_map")
         if not location_map:
             locations = await api.get_storage_locations(community_id)
@@ -68,7 +67,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
 
         try:
             await api.add_item(community_id, location_id, gtin, count, best_before)
-            _LOGGER.warning("Artikel hinzugefügt: %s (%s Stück) in %s", gtin, count, location_name)
+            _LOGGER.info("Artikel hinzugefügt: %s (%s Stück) in %s", gtin, count, location_name)
         except Exception as e:
             _LOGGER.error("Fehler beim Hinzufügen von Artikel %s: %s", gtin, e)
 
@@ -93,18 +92,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
             if not matching_locations:
                 matching_locations = [loc["name"] for loc in locations]
 
-            # Input-Select setzen
-            import asyncio
             await hass.services.async_call("input_select", "set_options", {
                 "entity_id": "input_select.lagerort_auswahl",
                 "options": matching_locations
             })
-            await asyncio.sleep(0.1)
             await hass.services.async_call("input_select", "select_option", {
                 "entity_id": "input_select.lagerort_auswahl",
                 "option": matching_locations[0]
             })
-            _LOGGER.warning("Lagerorte für GTIN %s gesetzt: %s", gtin, matching_locations)
+            _LOGGER.info("Lagerorte für GTIN %s gesetzt: %s", gtin, matching_locations)
 
         except Exception as e:
             _LOGGER.error("Fehler beim Abrufen der Lagerorte für GTIN %s: %s", gtin, e)
@@ -196,6 +192,7 @@ class SingleItemSensor(SensorEntity):
         self._attr_icon = "mdi:magnify"
         self._state = "–"
         self._attr_extra_state_attributes = {}
+        self.hass = None
 
     @property
     def native_value(self):
@@ -204,11 +201,11 @@ class SingleItemSensor(SensorEntity):
     def set_hass(self, hass: HomeAssistant):
         self.hass = hass
 
-        # Listener für Änderungen am input_text.gtin_eingabe
-        async def state_listener(entity, old_state, new_state):
+        async def state_listener(event):
             await self.async_update()
             self.async_write_ha_state()
-
+    
+        # Direkt die Coroutine registrieren
         async_track_state_change_event(
             hass,
             "input_text.gtin_eingabe",
@@ -216,6 +213,9 @@ class SingleItemSensor(SensorEntity):
         )
 
     async def async_update(self):
+        if not self.hass:
+            return
+
         gtin_state = self.hass.states.get("input_text.gtin_eingabe")
         gtin = gtin_state.state.strip() if gtin_state and gtin_state.state else None
 
@@ -231,7 +231,7 @@ class SingleItemSensor(SensorEntity):
 
         found_item = None
         found_location = None
-        count_value = 1  # default fallback
+        count_value = 1
 
         try:
             locations = await self._api.get_storage_locations(self._community_id)
@@ -243,7 +243,7 @@ class SingleItemSensor(SensorEntity):
                     break
 
             off_data = await fetch_openfoodfacts(gtin)
-            image_url = off_data.get("product", {}).get("image_front_small_url") or ""
+            image_url = off_data.get("product", {}).get("image_front_small_url", "") or ""
 
             if not found_item:
                 self._state = "Nicht gefunden"
@@ -273,7 +273,6 @@ class SingleItemSensor(SensorEntity):
                 "Lagerplatz": found_location or "-"
             }
 
-            # Menge im input_number setzen
             await self.hass.services.async_call("input_number", "set_value", {
                 "entity_id": "input_number.menge_eingabe",
                 "value": count_value
