@@ -2,21 +2,38 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity import Entity
 import logging
 
+DOMAIN = "speisekammer"
 _LOGGER = logging.getLogger(__name__)
 
 
 class Inventur:
     """Verwaltet die Inventur eines Lagerorts"""
 
-    def __init__(self, hass: HomeAssistant, api):
+    def __init__(self, hass: HomeAssistant, api, entry_id: str, community_id: str):
         self.hass = hass
         self.api = api
+        self.entry_id = entry_id
+        self.community_id = community_id
         self._inventur = {}
         self.running = False
 
-    async def start(self, community_id: str, location_id: str):
+    async def start(self, location_id: str = None):
         """Inventur starten und Artikel aus Lager laden"""
-        items = await self.api.get_items(community_id, location_id)
+        if not self.community_id:
+            _LOGGER.error("Keine Community-ID vorhanden – Inventur kann nicht starten")
+            return
+
+        # Falls kein location_id übergeben -> automatisch aus input_select.lagerort_auswahl holen
+        if not location_id:
+            lagerort_entity = self.hass.states.get("input_select.lagerort_auswahl")
+            if lagerort_entity:
+                location_id = lagerort_entity.state
+                _LOGGER.info("Lagerort automatisch gewählt: %s", location_id)
+            else:
+                _LOGGER.warning("Kein Lagerort ausgewählt – Inventur kann nicht starten")
+                return
+
+        items = await self.api.get_items(self.community_id, location_id)
         self._inventur = {}
         self.running = True
         for item in items:
@@ -40,9 +57,15 @@ class Inventur:
             if mhd:
                 self._inventur[gtin]["mhd"] = mhd
         else:
-            self._inventur[gtin] = {"name": "Unbekannt", "soll": 0, "ist": count, "mhd": mhd, "lager": "Unbekannt"}
+            self._inventur[gtin] = {
+                "name": "Unbekannt",
+                "soll": 0,
+                "ist": count,
+                "mhd": mhd,
+                "lager": "Unbekannt"
+            }
 
-    async def stop(self, community_id: str):
+    async def stop(self):
         """Inventur stoppen und Änderungen ins Lager übertragen"""
         if not self.running:
             _LOGGER.warning("Inventur nicht gestartet")
@@ -59,7 +82,11 @@ class Inventur:
 
         if updated_items:
             for item in updated_items:
-                await self.api.update_stock(community_id, self._inventur[item["gtin"]]["lager"], [item])
+                await self.api.update_stock(
+                    self.community_id,
+                    self._inventur[item["gtin"]]["lager"],
+                    [item]
+                )
 
         _LOGGER.info("Inventur beendet, %d Artikel aktualisiert", len(updated_items))
         self._inventur.clear()
@@ -84,10 +111,9 @@ def register_services(hass: HomeAssistant, inventur: Inventur):
     """Registriert Inventur-Services in Home Assistant"""
 
     async def async_start(call):
-        await inventur.start(call.data["community_id"], call.data["location_id"])
-        entry_id = call.data.get("entry_id", "default")
+        await inventur.start(call.data.get("location_id"))
         hass.data.setdefault("speisekammer_inventur", {})
-        hass.data["speisekammer_inventur"][entry_id] = inventur.get_table_data()
+        hass.data["speisekammer_inventur"][inventur.entry_id] = inventur.get_table_data()
 
     async def async_scan(call):
         await inventur.scan_article(
@@ -95,17 +121,15 @@ def register_services(hass: HomeAssistant, inventur: Inventur):
             call.data.get("count", 1),
             call.data.get("mhd")
         )
-        entry_id = call.data.get("entry_id", "default")
-        hass.data["speisekammer_inventur"][entry_id] = inventur.get_table_data()
+        hass.data["speisekammer_inventur"][inventur.entry_id] = inventur.get_table_data()
 
     async def async_stop(call):
-        await inventur.stop(call.data["community_id"])
-        entry_id = call.data.get("entry_id", "default")
-        hass.data["speisekammer_inventur"][entry_id] = inventur.get_table_data()
+        await inventur.stop()
+        hass.data["speisekammer_inventur"][inventur.entry_id] = inventur.get_table_data()
 
-    hass.services.async_register("speisekammer", "start_inventur", async_start)
-    hass.services.async_register("speisekammer", "scan_article", async_scan)
-    hass.services.async_register("speisekammer", "stop_inventur", async_stop)
+    hass.services.async_register(DOMAIN, "start_inventur", async_start)
+    hass.services.async_register(DOMAIN, "scan_article", async_scan)
+    hass.services.async_register(DOMAIN, "stop_inventur", async_stop)
 
 
 class InventurSensor(Entity):
