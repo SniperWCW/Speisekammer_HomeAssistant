@@ -2,16 +2,10 @@ from homeassistant.core import HomeAssistant
 from homeassistant.config_entries import ConfigEntry
 from .const import DOMAIN, CONF_TOKEN, CONF_COMMUNITY_ID
 from .api import SpeisekammerAPI
-from .inventur import Inventur, register_services
+from .inventur import Inventur, InventurSensor, register_services
 import logging
 
 _LOGGER = logging.getLogger(__name__)
-
-
-async def async_setup(hass: HomeAssistant, config: dict):
-    """Standard-Setup der Integration (kein Konfigurationsflow nötig)"""
-    return True
-
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     """Setup der Integration über ConfigEntry"""
@@ -34,26 +28,19 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
         items = call.data.get("items")
         _LOGGER.debug("Update stock: location=%s, items=%s", location_id, items)
         await api.update_stock(community_id, location_id, items)
-
+    
     hass.services.async_register(DOMAIN, "update_stock", handle_update_stock)
-    _LOGGER.info("Service speisekammer.update_stock erfolgreich registriert")
-
+    _LOGGER.info("Service speisekammer.update_stock registriert")
+    
     # --- Inventur Services ---
-    inventur = Inventur(
-        hass=hass,
-        api=api,
-        entry_id=entry.entry_id,      # entry_id korrekt übergeben
-        community_id=community_id     # community_id fest hinterlegt
-    )
-    register_services(hass, inventur)
-    _LOGGER.info(
-        "Inventur-Services registriert: start_inventur, scan_article, stop_inventur"
-    )
+    # Wir erstellen die Inventur hier, Sensor wird in sensor.py registriert
+    inventur = Inventur(hass, api, entry_id=entry.entry_id, community_id=community_id)
+    # Sensor wird erst in sensor.py erzeugt, wir übergeben inventur nur an register_services
+    # register_services wird von sensor.py aufgerufen, daher hier nicht nötig
 
-    # Sensor Plattform laden (alles wird über sensor.py registriert)
+    # Sensor Plattform forwarden
     await hass.config_entries.async_forward_entry_setups(entry, ["sensor"])
     return True
-
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry):
     """Integration entladen"""
