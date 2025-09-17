@@ -56,6 +56,8 @@ columns:
 <img width="1351" height="472" alt="image" src="https://github.com/user-attachments/assets/7266f4a6-5da3-4d7a-8e36-253b49a33d4a" />
 
 In Entwicklung
+<img width="923" height="689" alt="image" src="https://github.com/user-attachments/assets/61a190ea-edac-4044-a260-f71d16eb94b9" />
+
 Artikel hinzufügen
 1. Helfer anlegen
 ```YAML
