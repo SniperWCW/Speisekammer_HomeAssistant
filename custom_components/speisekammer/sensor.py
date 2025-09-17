@@ -5,6 +5,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.event import async_track_state_change_event
 from .api import SpeisekammerAPI
 from .const import DOMAIN, CONF_TOKEN, CONF_COMMUNITY_ID
+from .inventur import Inventur, InventurSensor, register_services
 import logging
 import aiohttp
 
@@ -24,15 +25,24 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
     location_map = {loc["name"]: loc["id"] for loc in locations}
     hass.data["speisekammer_location_map"] = location_map
 
+    # Lagerplatz-Sensoren
     for location in locations:
         location_id = location["id"]
         location_name = location["name"]
         entities.append(StorageLocationSensor(api, community_id, location_id, location_name))
 
+    # Single-Item Sensor (GTIN Lookup)
     if locations:
         gtin_sensor = SingleItemSensor(api, community_id)
         gtin_sensor.set_hass(hass)
         entities.append(gtin_sensor)
+
+    # Inventur Sensor
+    inventur = Inventur(hass, api)
+    register_services(hass, inventur)
+    inventur_sensor = InventurSensor(inventur)
+    entities.append(inventur_sensor)
+    _LOGGER.info("Inventur-Sensor registriert und Services hinzugefügt")
 
     async_add_entities(entities, update_before_add=True)
 
@@ -212,7 +222,6 @@ class SingleItemSensor(SensorEntity):
         if not gtin:
             self._state = "Keine GTIN"
             self._attr_extra_state_attributes = {}
-            # Menge fallback auf 1
             await self.hass.services.async_call("input_number", "set_value", {
                 "entity_id": "input_number.menge_eingabe",
                 "value": 1
@@ -244,7 +253,6 @@ class SingleItemSensor(SensorEntity):
                     "Lagerplatz": "-",
                     "Menge": 0
                 }
-                # Menge fallback auf 1
                 await self.hass.services.async_call("input_number", "set_value", {
                     "entity_id": "input_number.menge_eingabe",
                     "value": 1
@@ -271,7 +279,7 @@ class SingleItemSensor(SensorEntity):
                 "value": count_value
             })
 
-            _LOGGER.warning("Sensor-State gesetzt auf %s mit Attributen: %s", self._state, self._attr_extra_state_attributes)
+            _LOGGER.info("Sensor-State gesetzt auf %s mit Attributen: %s", self._state, self._attr_extra_state_attributes)
 
         except Exception as e:
             _LOGGER.error("Fehler beim GTIN-Lookup: %s", e)
@@ -281,7 +289,6 @@ class SingleItemSensor(SensorEntity):
                 "Lagerplatz": "-",
                 "Menge": 0
             }
-            # Menge fallback auf 1
             await self.hass.services.async_call("input_number", "set_value", {
                 "entity_id": "input_number.menge_eingabe",
                 "value": 1
@@ -289,5 +296,4 @@ class SingleItemSensor(SensorEntity):
 
     @property
     def extra_state_attributes(self):
-        """Zusätzliche Attribute für Home Assistant."""
         return self._attr_extra_state_attributes or {}
