@@ -53,7 +53,7 @@ class SpeisekammerAPI:
                 if resp.status == 200:
                     return await resp.json()
                 elif resp.status == 404:
-                    _LOGGER.warning("GTIN %s nicht gefunden in Lagerort %s", gtin, location_id)
+                    _LOGGER.info("GTIN %s nicht gefunden in Lagerort %s", gtin, location_id)
                     return None
                 else:
                     _LOGGER.error("Fehler beim Abrufen des Artikels: %s – URL: %s", resp.status, url)
