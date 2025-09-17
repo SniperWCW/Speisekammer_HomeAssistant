@@ -2,7 +2,7 @@ from datetime import timedelta
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.event import async_track_state_change
+from homeassistant.helpers.event import async_track_state_change_event
 from .api import SpeisekammerAPI
 from .const import DOMAIN, CONF_TOKEN, CONF_COMMUNITY_ID
 import logging
@@ -58,7 +58,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
 
         try:
             await api.add_item(community_id, location_id, gtin, count, best_before)
-            _LOGGER.info("Artikel hinzugefügt: %s (%s Stück) in %s", gtin, count, location_name)
+            _LOGGER.warning("Artikel hinzugefügt: %s (%s Stück) in %s", gtin, count, location_name)
         except Exception as e:
             _LOGGER.error("Fehler beim Hinzufügen von Artikel %s: %s", gtin, e)
 
@@ -94,7 +94,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
                 "entity_id": "input_select.lagerort_auswahl",
                 "option": matching_locations[0]
             })
-            _LOGGER.info("Lagerorte für GTIN %s gesetzt: %s", gtin, matching_locations)
+            _LOGGER.warning("Lagerorte für GTIN %s gesetzt: %s", gtin, matching_locations)
 
         except Exception as e:
             _LOGGER.error("Fehler beim Abrufen der Lagerorte für GTIN %s: %s", gtin, e)
@@ -199,7 +199,7 @@ class SingleItemSensor(SensorEntity):
             await self.async_update()
             self.async_write_ha_state()
 
-        async_track_state_change(
+        async_track_state_change_event(
             hass,
             "input_text.gtin_eingabe",
             state_listener
@@ -212,11 +212,17 @@ class SingleItemSensor(SensorEntity):
         if not gtin:
             self._state = "Keine GTIN"
             self._attr_extra_state_attributes = {}
-            _LOGGER.debug("Keine GTIN im input_text gefunden")
+            # Menge fallback auf 1
+            await self.hass.services.async_call("input_number", "set_value", {
+                "entity_id": "input_number.menge_eingabe",
+                "value": 1
+            })
+            _LOGGER.warning("Keine GTIN im input_text gefunden")
             return
 
         found_item = None
         found_location = None
+        count_value = 1  # default fallback
 
         try:
             locations = await self._api.get_storage_locations(self._community_id)
@@ -238,24 +244,34 @@ class SingleItemSensor(SensorEntity):
                     "Lagerplatz": "-",
                     "Menge": 0
                 }
-                _LOGGER.info("Kein Item mit GTIN %s gefunden", gtin)
+                # Menge fallback auf 1
+                await self.hass.services.async_call("input_number", "set_value", {
+                    "entity_id": "input_number.menge_eingabe",
+                    "value": 1
+                })
+                _LOGGER.warning("Kein Item mit GTIN %s gefunden", gtin)
                 return
 
             attr = found_item.get("attributes", [{}])[0]
+            count_value = attr.get("count", 1)
+
             self._state = found_item.get("name", "Unbekannt")
             self._attr_extra_state_attributes = {
                 "GTIN": found_item.get("gtin", gtin),
-                "Menge": attr.get("count", 0),
+                "Menge": count_value,
                 "MHD": attr.get("bestBeforeDate", "–"),
                 "Beschreibung": found_item.get("description", ""),
                 "Bild": image_url,
                 "Lagerplatz": found_location or "-"
             }
-            _LOGGER.info(
-                "Sensor-State gesetzt auf %s mit Attributen: %s",
-                self._state,
-                self._attr_extra_state_attributes,
-            )
+
+            # Menge im input_number setzen
+            await self.hass.services.async_call("input_number", "set_value", {
+                "entity_id": "input_number.menge_eingabe",
+                "value": count_value
+            })
+
+            _LOGGER.warning("Sensor-State gesetzt auf %s mit Attributen: %s", self._state, self._attr_extra_state_attributes)
 
         except Exception as e:
             _LOGGER.error("Fehler beim GTIN-Lookup: %s", e)
@@ -265,6 +281,11 @@ class SingleItemSensor(SensorEntity):
                 "Lagerplatz": "-",
                 "Menge": 0
             }
+            # Menge fallback auf 1
+            await self.hass.services.async_call("input_number", "set_value", {
+                "entity_id": "input_number.menge_eingabe",
+                "value": 1
+            })
 
     @property
     def extra_state_attributes(self):
