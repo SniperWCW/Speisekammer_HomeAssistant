@@ -53,7 +53,38 @@
           "lagerplatz": "Lagerort",
           "bild": "Produktbild"
         }
+      },
+      "inventur": {
+        "name": "Speisekammer Inventur",
+        "state": {
+          "idle": "Idle",
+          "running": "Running"
+        },
+        "attributes": {
+          "table_data": "Inventur-Tabelle",
+          "name": "Artikelname",
+          "barcode": "Barcode",
+          "menge_soll": "Menge SOLL",
+          "menge_ist": "Menge IST",
+          "lager": "Lagerort",
+          "mhd": "Mindesthaltbarkeitsdatum"
+        }
       }
     }
+  },
+  "service": {
+    "start_inventur": "Inventur starten",
+    "scan_article": "Artikel scannen",
+    "stop_inventur": "Inventur beenden",
+    "update_stock": "Bestand aktualisieren",
+    "add_item": "Artikel hinzufügen",
+    "get_locations_for_gtin": "Lagerorte für GTIN prüfen"
+  },
+  "input": {
+    "gtin_eingabe": "GTIN Eingabe",
+    "menge_eingabe": "Menge",
+    "mhd_eingabe": "Mindesthaltbarkeitsdatum",
+    "lagerort_auswahl": "Lagerort",
+    "inventurmodus": "Inventurmodus"
   }
 }
