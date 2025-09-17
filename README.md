@@ -148,6 +148,15 @@ cards:
 ```
 -----------------------------
 **INVENTUR Modus aktuell noch nicht funktionsfähig**
+
+start_inventur → Inventur wird gestartet, aktuelle Artikel aus dem Lager werden geladen, Sensor auf „Running“ gesetzt.
+
+scan_article → Für jeden gescannten Artikel: GTIN eingeben, Menge ggf. anpassen, Service ausführen → die Inventur-Daten (ist-Werte) werden aktualisiert.
+
+Flex-Table Sensor (InventurSensor) → zeigt laufend aktualisierte Tabelle mit allen gescannten Artikeln, Mengen, Soll/Ist, Lagerort und MHD. Die Tabelle aktualisiert sich nach jedem scan_article.
+
+stop_inventur → beendet die Inventur, schreibt alle Änderungen zurück ins Lager (update_stock), Sensor wird wieder auf „Idle“ gesetzt.
+
 Helfer anlegen
 ```YAML
 input_boolean:
