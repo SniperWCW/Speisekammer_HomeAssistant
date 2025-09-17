@@ -18,12 +18,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
     community_id = entry.data[CONF_COMMUNITY_ID]
     api = SpeisekammerAPI(token=token)
 
+    # Lagerorte abrufen und Mapping speichern
     locations = await api.get_storage_locations(community_id)
-    entities = []
-
-    # Mapping Lagerort-Name -> ID speichern
     location_map = {loc["name"]: loc["id"] for loc in locations}
     hass.data["speisekammer_location_map"] = location_map
+
+    entities = []
 
     # Lagerplatz-Sensoren
     for location in locations:
@@ -31,36 +31,35 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
         location_name = location["name"]
         entities.append(StorageLocationSensor(api, community_id, location_id, location_name))
 
-    # Single-Item Sensor (GTIN Lookup)
+    # Single-Item Sensor für GTIN Lookup
     if locations:
         gtin_sensor = SingleItemSensor(api, community_id)
         gtin_sensor.set_hass(hass)
         entities.append(gtin_sensor)
 
-    # Inventur Sensor
+    # Inventur Sensor + Services
     inventur = Inventur(hass, api, entry_id=entry.entry_id, community_id=community_id)
-    register_services(hass, inventur)
     inventur_sensor = InventurSensor(inventur)
     entities.append(inventur_sensor)
+
+    # Services registrieren, inkl. Übergabe des Sensors für Update
+    register_services(hass, inventur, inventur_sensor)
+
     _LOGGER.info("Inventur-Sensor registriert und Services hinzugefügt")
 
     async_add_entities(entities, update_before_add=True)
 
+    # --------------------------
     # Service: Artikel hinzufügen
+    # --------------------------
     async def handle_add_item(call):
         gtin = call.data.get("gtin")
         count = call.data.get("count")
         best_before = call.data.get("best_before")
         location_name = call.data.get("location_name")
 
-        location_map = hass.data.get("speisekammer_location_map")
-        if not location_map:
-            locations = await api.get_storage_locations(community_id)
-            location_map = {loc["name"]: loc["id"] for loc in locations}
-            hass.data["speisekammer_location_map"] = location_map
-
+        location_map = hass.data.get("speisekammer_location_map", {})
         location_id = location_map.get(location_name)
-
         if not location_id:
             _LOGGER.error("Unbekannter Lagerort: %s", location_name)
             return
@@ -71,7 +70,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
         except Exception as e:
             _LOGGER.error("Fehler beim Hinzufügen von Artikel %s: %s", gtin, e)
 
+    hass.services.async_register(DOMAIN, "add_item", handle_add_item)
+
+    # --------------------------
     # Service: Lagerorte für GTIN prüfen
+    # --------------------------
     async def handle_get_locations_for_gtin(call):
         gtin = call.data.get("gtin")
         if not gtin:
@@ -92,6 +95,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
             if not matching_locations:
                 matching_locations = [loc["name"] for loc in locations]
 
+            # Input_select Optionen setzen
             await hass.services.async_call("input_select", "set_options", {
                 "entity_id": "input_select.lagerort_auswahl",
                 "options": matching_locations
@@ -100,27 +104,18 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
                 "entity_id": "input_select.lagerort_auswahl",
                 "option": matching_locations[0]
             })
+
             _LOGGER.info("Lagerorte für GTIN %s gesetzt: %s", gtin, matching_locations)
 
         except Exception as e:
             _LOGGER.error("Fehler beim Abrufen der Lagerorte für GTIN %s: %s", gtin, e)
 
-    hass.services.async_register(DOMAIN, "add_item", handle_add_item)
     hass.services.async_register(DOMAIN, "get_locations_for_gtin", handle_get_locations_for_gtin)
 
 
-async def fetch_openfoodfacts(gtin: str) -> dict:
-    url = f"https://world.openfoodfacts.org/api/v2/product/{gtin}.json"
-    try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url) as response:
-                if response.status == 200:
-                    return await response.json()
-    except Exception as e:
-        _LOGGER.warning("OpenFoodFacts Fehler für GTIN %s: %s", gtin, e)
-    return {}
-
-
+# --------------------------
+# StorageLocationSensor
+# --------------------------
 class StorageLocationSensor(SensorEntity):
     def __init__(self, api: SpeisekammerAPI, community_id: str, location_id: str, location_name: str):
         self._api = api
@@ -133,11 +128,7 @@ class StorageLocationSensor(SensorEntity):
         self._attr_native_unit_of_measurement = "Artikel"
         self._attr_should_poll = True
         self._state = 0
-        self._attr_extra_state_attributes = {
-            "table": [],
-            "Lagerplatz": location_name,
-            "Artikelanzahl": 0
-        }
+        self._attr_extra_state_attributes = {"table": [], "Lagerplatz": location_name, "Artikelanzahl": 0}
 
     @property
     def native_value(self):
@@ -155,7 +146,6 @@ class StorageLocationSensor(SensorEntity):
                         gtin = item.get("gtin", "")
                         off_data = await fetch_openfoodfacts(gtin) if gtin else {}
                         image_url = off_data.get("product", {}).get("image_front_small_url", "")
-
                         table.append({
                             "Name": item.get("name", "Unbekannt"),
                             "Menge": count,
@@ -167,22 +157,17 @@ class StorageLocationSensor(SensorEntity):
 
             table.sort(key=lambda x: x.get("Ablaufdatum") or "9999-12-31")
             self._state = len(table)
-            self._attr_extra_state_attributes = {
-                "table": table,
-                "Lagerplatz": self._location_name,
-                "Artikelanzahl": len(table)
-            }
+            self._attr_extra_state_attributes = {"table": table, "Lagerplatz": self._location_name, "Artikelanzahl": len(table)}
 
         except Exception as e:
             _LOGGER.error("Fehler beim Update von %s: %s", self._location_name, e)
             self._state = None
-            self._attr_extra_state_attributes = {
-                "table": [],
-                "Lagerplatz": self._location_name,
-                "Artikelanzahl": 0
-            }
+            self._attr_extra_state_attributes = {"table": [], "Lagerplatz": self._location_name, "Artikelanzahl": 0}
 
 
+# --------------------------
+# SingleItemSensor
+# --------------------------
 class SingleItemSensor(SensorEntity):
     def __init__(self, api: SpeisekammerAPI, community_id: str):
         self._api = api
@@ -204,8 +189,7 @@ class SingleItemSensor(SensorEntity):
         async def state_listener(event):
             await self.async_update()
             self.async_write_ha_state()
-    
-        # Direkt die Coroutine registrieren
+
         async_track_state_change_event(
             hass,
             "input_text.gtin_eingabe",
@@ -222,19 +206,12 @@ class SingleItemSensor(SensorEntity):
         if not gtin:
             self._state = "Keine GTIN"
             self._attr_extra_state_attributes = {}
-            await self.hass.services.async_call("input_number", "set_value", {
-                "entity_id": "input_number.menge_eingabe",
-                "value": 1
-            })
-            _LOGGER.warning("Keine GTIN im input_text gefunden")
             return
-
-        found_item = None
-        found_location = None
-        count_value = 1
 
         try:
             locations = await self._api.get_storage_locations(self._community_id)
+            found_item = None
+            found_location = None
             for loc in locations:
                 item = await self._api.get_item_by_gtin(self._community_id, loc["id"], gtin)
                 if item:
@@ -253,16 +230,10 @@ class SingleItemSensor(SensorEntity):
                     "Lagerplatz": "-",
                     "Menge": 0
                 }
-                await self.hass.services.async_call("input_number", "set_value", {
-                    "entity_id": "input_number.menge_eingabe",
-                    "value": 1
-                })
-                _LOGGER.warning("Kein Item mit GTIN %s gefunden", gtin)
                 return
 
             attr = found_item.get("attributes", [{}])[0]
             count_value = attr.get("count", 1)
-
             self._state = found_item.get("name", "Unbekannt")
             self._attr_extra_state_attributes = {
                 "GTIN": found_item.get("gtin", gtin),
@@ -273,26 +244,22 @@ class SingleItemSensor(SensorEntity):
                 "Lagerplatz": found_location or "-"
             }
 
-            await self.hass.services.async_call("input_number", "set_value", {
-                "entity_id": "input_number.menge_eingabe",
-                "value": count_value
-            })
-
-            _LOGGER.info("Sensor-State gesetzt auf %s mit Attributen: %s", self._state, self._attr_extra_state_attributes)
-
         except Exception as e:
             _LOGGER.error("Fehler beim GTIN-Lookup: %s", e)
             self._state = "Fehler"
-            self._attr_extra_state_attributes = {
-                "GTIN": gtin or "-",
-                "Lagerplatz": "-",
-                "Menge": 0
-            }
-            await self.hass.services.async_call("input_number", "set_value", {
-                "entity_id": "input_number.menge_eingabe",
-                "value": 1
-            })
+            self._attr_extra_state_attributes = {"GTIN": gtin or "-", "Lagerplatz": "-", "Menge": 0}
 
-    @property
-    def extra_state_attributes(self):
-        return self._attr_extra_state_attributes or {}
+
+# --------------------------
+# Hilfsfunktion für OpenFoodFacts
+# --------------------------
+async def fetch_openfoodfacts(gtin: str) -> dict:
+    url = f"https://world.openfoodfacts.org/api/v2/product/{gtin}.json"
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url) as response:
+                if response.status == 200:
+                    return await response.json()
+    except Exception as e:
+        _LOGGER.warning("OpenFoodFacts Fehler für GTIN %s: %s", gtin, e)
+    return {}
