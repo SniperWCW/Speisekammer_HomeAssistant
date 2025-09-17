@@ -47,7 +47,7 @@ columns:
     name: Lagerplatz
     modify: |
       x ? `<div style="overflow-wrap: anywhere;">${x}</div>` : ''
-  - data: table.image_front_small_url
+  - data: table.Bild
     name: Bild
     modify: |
       x ? `<img src="${x}" style="height: 80px; border-radius: 4px;">` : ''
