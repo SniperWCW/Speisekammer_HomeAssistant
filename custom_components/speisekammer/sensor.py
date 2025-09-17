@@ -2,6 +2,7 @@ from datetime import timedelta
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.event import async_track_state_change
 from .api import SpeisekammerAPI
 from .const import DOMAIN, CONF_TOKEN, CONF_COMMUNITY_ID
 import logging
@@ -9,6 +10,7 @@ import aiohttp
 
 _LOGGER = logging.getLogger(__name__)
 SCAN_INTERVAL = timedelta(minutes=10)
+
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities):
     token = entry.data[CONF_TOKEN]
@@ -18,17 +20,88 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
     locations = await api.get_storage_locations(community_id)
     entities = []
 
+    # Mapping Lagerort-Name -> ID speichern
+    location_map = {loc["name"]: loc["id"] for loc in locations}
+    hass.data["speisekammer_location_map"] = location_map
+
     for location in locations:
         location_id = location["id"]
         location_name = location["name"]
         entities.append(StorageLocationSensor(api, community_id, location_id, location_name))
 
     if locations:
-        gtin_sensor = SingleItemSensor(api, community_id, locations[0]["id"])
+        gtin_sensor = SingleItemSensor(api, community_id)
         gtin_sensor.set_hass(hass)
         entities.append(gtin_sensor)
 
     async_add_entities(entities, update_before_add=True)
+
+    # Service: Artikel hinzufügen
+    async def handle_add_item(call):
+        gtin = call.data.get("gtin")
+        count = call.data.get("count")
+        best_before = call.data.get("best_before")
+        location_name = call.data.get("location_name")
+
+        # Mapping prüfen, ggf. nachladen
+        location_map = hass.data.get("speisekammer_location_map")
+        if not location_map:
+            locations = await api.get_storage_locations(community_id)
+            location_map = {loc["name"]: loc["id"] for loc in locations}
+            hass.data["speisekammer_location_map"] = location_map
+
+        location_id = location_map.get(location_name)
+
+        if not location_id:
+            _LOGGER.error("Unbekannter Lagerort: %s", location_name)
+            return
+
+        try:
+            await api.add_item(community_id, location_id, gtin, count, best_before)
+            _LOGGER.info("Artikel hinzugefügt: %s (%s Stück) in %s", gtin, count, location_name)
+        except Exception as e:
+            _LOGGER.error("Fehler beim Hinzufügen von Artikel %s: %s", gtin, e)
+
+    # Service: Lagerorte für GTIN prüfen
+    async def handle_get_locations_for_gtin(call):
+        gtin = call.data.get("gtin")
+        if not gtin:
+            _LOGGER.warning("GTIN fehlt für Lagerortprüfung")
+            return
+
+        try:
+            locations = await api.get_storage_locations(community_id)
+            location_map = {loc["name"]: loc["id"] for loc in locations}
+            hass.data["speisekammer_location_map"] = location_map
+
+            matching_locations = []
+            for loc in locations:
+                item = await api.get_item_by_gtin(community_id, loc["id"], gtin)
+                if item:
+                    matching_locations.append(loc["name"])
+
+            if not matching_locations:
+                matching_locations = [loc["name"] for loc in locations]
+
+            # Input-Select setzen
+            import asyncio
+            await hass.services.async_call("input_select", "set_options", {
+                "entity_id": "input_select.lagerort_auswahl",
+                "options": matching_locations
+            })
+            await asyncio.sleep(0.1)
+            await hass.services.async_call("input_select", "select_option", {
+                "entity_id": "input_select.lagerort_auswahl",
+                "option": matching_locations[0]
+            })
+            _LOGGER.info("Lagerorte für GTIN %s gesetzt: %s", gtin, matching_locations)
+
+        except Exception as e:
+            _LOGGER.error("Fehler beim Abrufen der Lagerorte für GTIN %s: %s", gtin, e)
+
+    hass.services.async_register(DOMAIN, "add_item", handle_add_item)
+    hass.services.async_register(DOMAIN, "get_locations_for_gtin", handle_get_locations_for_gtin)
+
 
 async def fetch_openfoodfacts(gtin: str) -> dict:
     url = f"https://world.openfoodfacts.org/api/v2/product/{gtin}.json"
@@ -40,6 +113,7 @@ async def fetch_openfoodfacts(gtin: str) -> dict:
     except Exception as e:
         _LOGGER.warning("OpenFoodFacts Fehler für GTIN %s: %s", gtin, e)
     return {}
+
 
 class StorageLocationSensor(SensorEntity):
     def __init__(self, api: SpeisekammerAPI, community_id: str, location_id: str, location_name: str):
@@ -75,18 +149,18 @@ class StorageLocationSensor(SensorEntity):
                         gtin = item.get("gtin", "")
                         off_data = await fetch_openfoodfacts(gtin) if gtin else {}
                         image_url = off_data.get("product", {}).get("image_front_small_url", "")
-                    
+
                         table.append({
                             "Name": item.get("name", "Unbekannt"),
                             "Menge": count,
-                            "GTIN": item.get("gtin", ""),
+                            "GTIN": gtin,
                             "Ablaufdatum": attr.get("bestBeforeDate", ""),
                             "Lagerplatz": self._location_name,
-                            "image_front_small_url": image_url
+                            "Bild": image_url
                         })
 
             table.sort(key=lambda x: x.get("Ablaufdatum") or "9999-12-31")
-            self._state = len(table)  # sinnvoll: Anzahl der Artikel als State
+            self._state = len(table)
             self._attr_extra_state_attributes = {
                 "table": table,
                 "Lagerplatz": self._location_name,
@@ -102,47 +176,97 @@ class StorageLocationSensor(SensorEntity):
                 "Artikelanzahl": 0
             }
 
+
 class SingleItemSensor(SensorEntity):
-    def __init__(self, api: SpeisekammerAPI, community_id: str, location_id: str):
+    def __init__(self, api: SpeisekammerAPI, community_id: str):
         self._api = api
         self._community_id = community_id
-        self._location_id = location_id
         self._attr_name = "Speisekammer Artikelabfrage"
         self._attr_unique_id = "speisekammer_gtin_lookup"
         self._attr_icon = "mdi:magnify"
-        self._attr_state = 0
+        self._state = "–"
         self._attr_extra_state_attributes = {}
+
+    @property
+    def native_value(self):
+        return self._state
 
     def set_hass(self, hass: HomeAssistant):
         self.hass = hass
 
+        # Listener für Änderungen am input_text.gtin_eingabe
+        async def state_listener(entity, old_state, new_state):
+            await self.async_update()
+            self.async_write_ha_state()
+
+        async_track_state_change(
+            hass,
+            "input_text.gtin_eingabe",
+            state_listener
+        )
+
     async def async_update(self):
-        gtin_state = self.hass.states.get("input_text.gtin_abfrage")
+        gtin_state = self.hass.states.get("input_text.gtin_eingabe")
         gtin = gtin_state.state.strip() if gtin_state and gtin_state.state else None
 
         if not gtin:
-            self._attr_state = "Keine GTIN"
+            self._state = "Keine GTIN"
             self._attr_extra_state_attributes = {}
+            _LOGGER.debug("Keine GTIN im input_text gefunden")
             return
 
-        item = await self._api.get_item_by_gtin(self._community_id, self._location_id, gtin)
-        off_data = await fetch_openfoodfacts(gtin)
-        image_url = off_data.get("product", {}).get("image_front_small_url", "")
+        found_item = None
+        found_location = None
 
-        if not item:
-            self._attr_state = "Nicht gefunden"
+        try:
+            locations = await self._api.get_storage_locations(self._community_id)
+            for loc in locations:
+                item = await self._api.get_item_by_gtin(self._community_id, loc["id"], gtin)
+                if item:
+                    found_item = item
+                    found_location = loc["name"]
+                    break
+
+            off_data = await fetch_openfoodfacts(gtin)
+            image_url = off_data.get("product", {}).get("image_front_small_url") or ""
+
+            if not found_item:
+                self._state = "Nicht gefunden"
+                self._attr_extra_state_attributes = {
+                    "GTIN": gtin,
+                    "Bild": image_url,
+                    "Lagerplatz": "-",
+                    "Menge": 0
+                }
+                _LOGGER.info("Kein Item mit GTIN %s gefunden", gtin)
+                return
+
+            attr = found_item.get("attributes", [{}])[0]
+            self._state = found_item.get("name", "Unbekannt")
             self._attr_extra_state_attributes = {
-                "GTIN": gtin,
-                "Bild": image_url
+                "GTIN": found_item.get("gtin", gtin),
+                "Menge": attr.get("count", 0),
+                "MHD": attr.get("bestBeforeDate", "–"),
+                "Beschreibung": found_item.get("description", ""),
+                "Bild": image_url,
+                "Lagerplatz": found_location or "-"
             }
-            return
+            _LOGGER.info(
+                "Sensor-State gesetzt auf %s mit Attributen: %s",
+                self._state,
+                self._attr_extra_state_attributes,
+            )
 
-        attr = item.get("attributes", [{}])[0]
-        self._attr_state = item.get("name", "Unbekannt")
-        self._attr_extra_state_attributes = {
-            "GTIN": item.get("gtin", gtin),
-            "Menge": attr.get("count", 0),
-            "MHD": attr.get("bestBeforeDate", "–"),
-            "Beschreibung": item.get("description", ""),
-            "Bild": image_url
-        }
+        except Exception as e:
+            _LOGGER.error("Fehler beim GTIN-Lookup: %s", e)
+            self._state = "Fehler"
+            self._attr_extra_state_attributes = {
+                "GTIN": gtin or "-",
+                "Lagerplatz": "-",
+                "Menge": 0
+            }
+
+    @property
+    def extra_state_attributes(self):
+        """Zusätzliche Attribute für Home Assistant."""
+        return self._attr_extra_state_attributes or {}
