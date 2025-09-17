@@ -1,5 +1,6 @@
 import aiohttp
 import logging
+from datetime import datetime, timezone
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -44,7 +45,7 @@ class SpeisekammerAPI:
                     url
                 )
                 return []
-                
+
     async def get_item_by_gtin(self, community_id: str, location_id: str, gtin: str):
         url = f"{self._base_url}/stock/{community_id}/{location_id}/{gtin}"
         async with aiohttp.ClientSession() as session:
@@ -68,23 +69,38 @@ class SpeisekammerAPI:
                 _LOGGER.error("Fehler beim Aktualisieren des Lagerbestands: %s – URL: %s", resp.status, url)
                 return None
 
-    # NEU: Artikel hinzufügen
-    async def add_item(self, community_id: str, location_id: str, gtin: str, count: int, best_before: str):
+    # NEU: Artikel hinzufügen / aktualisieren
+    async def add_item(self, community_id: str, location_id: str, gtin: str, count: int, best_before: str, description: str = ""):
         """
-        Fügt einen neuen Artikel in den Lagerort ein.
+        Fügt einen Artikel hinzu oder aktualisiert ihn.
+        best_before: ISO-Datum string z.B. '2025-09-17'
         """
+        # Timestamp aus ISO-Datum
+        try:
+            dt = datetime.fromisoformat(best_before).replace(tzinfo=timezone.utc)
+            ts = int(dt.timestamp() * 1000)  # Millisekunden
+        except Exception:
+            ts = int(datetime.now(tz=timezone.utc).timestamp() * 1000)
+
         payload = {
             "gtin": gtin,
-            "count": count,
-            "bestBeforeDate": best_before,
-            "locationId": location_id
+            "description": description,
+            "attributes": [
+                {
+                    "count": count,
+                    "bestBeforeDate": {
+                        "ts": ts
+                    }
+                }
+            ]
         }
-        url = f"{self._base_url}/stock/{community_id}/{location_id}/add"
+
+        url = f"{self._base_url}/stock/{community_id}/{location_id}"
         async with aiohttp.ClientSession() as session:
-            async with session.post(url, headers=self._headers(), json=payload) as resp:
+            async with session.put(url, headers=self._headers(), json=payload) as resp:
+                text = await resp.text()
                 if resp.status == 200:
                     _LOGGER.info("Artikel erfolgreich hinzugefügt: %s (%s Stück) in %s", gtin, count, location_id)
                     return await resp.json()
-                text = await resp.text()
                 _LOGGER.error("Fehler beim Hinzufügen des Artikels: %s – %s", resp.status, text)
                 raise Exception(f"Fehler beim Hinzufügen des Artikels: {resp.status} {text}")
