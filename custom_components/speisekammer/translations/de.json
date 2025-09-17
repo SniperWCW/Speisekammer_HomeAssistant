@@ -86,5 +86,95 @@
     "mhd_eingabe": "Mindesthaltbarkeitsdatum",
     "lagerort_auswahl": "Lagerort",
     "inventurmodus": "Inventurmodus"
+  },
+  {
+  "config": {
+    "step": {
+      "user": {
+        "title": "Speisekammer verbinden",
+        "description": "Trage deinen persönlichen API-Token ein, um auf deine Speisekammer-Daten zuzugreifen und deine Lagerorte zu verwalten.",
+        "data": {
+          "token": "API-Token"
+        }
+      },
+      "select_community": {
+        "title": "Community auswählen",
+        "description": "Wähle die Community, deren Lagerorte du in Home Assistant anzeigen möchtest.",
+        "data": {
+          "community_id": "Community"
+        }
+      }
+    },
+    "error": {
+      "invalid_token": "Der eingegebene Token ist ungültig oder es wurden keine Communities gefunden.",
+      "cannot_connect": "Verbindung zur Speisekammer API konnte nicht hergestellt werden.",
+      "unknown": "Ein unbekannter Fehler ist aufgetreten. Bitte überprüfe deine Einstellungen."
+    },
+    "abort": {
+      "already_configured": "Diese Community ist bereits in Home Assistant eingerichtet.",
+      "no_communities": "Es wurden keine Communities gefunden. Prüfe deinen API-Token.",
+      "missing_token": "Bitte gib einen gültigen Token ein."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "default": {
+        "name": "Speisekammer",
+        "state": {
+          "unknown": "Unbekannt",
+          "empty": "Keine Artikel",
+          "active": "Artikel vorhanden"
+        }
+      },
+      "artikelabfrage": {
+        "name": "Artikelabfrage",
+        "state": {
+          "no_gtin": "Keine GTIN eingegeben",
+          "not_found": "Artikel nicht gefunden",
+          "found": "Artikel gefunden",
+          "error": "Fehler beim Abruf"
+        },
+        "attributes": {
+          "gtin": "GTIN",
+          "menge": "Menge",
+          "mhd": "Mindesthaltbarkeitsdatum",
+          "beschreibung": "Beschreibung",
+          "lagerplatz": "Lagerort",
+          "bild": "Produktbild"
+        }
+      },
+      "inventur": {
+        "name": "Speisekammer Inventur",
+        "state": {
+          "idle": "Idle",
+          "running": "Running"
+        },
+        "attributes": {
+          "table_data": "Inventur-Tabelle",
+          "name": "Artikelname",
+          "barcode": "Barcode",
+          "menge_soll": "Menge SOLL",
+          "menge_ist": "Menge IST",
+          "lager": "Lagerort",
+          "mhd": "Mindesthaltbarkeitsdatum"
+        }
+      }
+    }
+  },
+  "service": {
+    "start_inventur": "Starte die Inventur und lade aktuelle Lagerdaten",
+    "scan_article": "Scanne einen Artikel und aktualisiere die Tabelle",
+    "stop_inventur": "Beende die Inventur und übertrage Änderungen ins Lager"
+    "update_stock": "Bestand aktualisieren",
+    "add_item": "Artikel hinzufügen",
+    "get_locations_for_gtin": "Lagerorte für GTIN prüfen"
+  },
+  "input": {
+    "gtin_eingabe": "GTIN Eingabe",
+    "menge_eingabe": "Menge",
+    "mhd_eingabe": "Mindesthaltbarkeitsdatum",
+    "lagerort_auswahl": "Lagerort",
+    "inventurmodus": "Inventurmodus"
   }
+}
 }
